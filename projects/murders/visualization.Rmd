@@ -1,0 +1,350 @@
+---
+title: "Visualization"
+author: "Matt Bartley"
+date: "5/14/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dslabs)
+library(ggthemes)
+library(ggrepel)
+
+ds_theme_set()
+
+data(gapminder)
+data(murders)
+data(heights)
+```
+
+
+# Visualization - GG-Plot & Dplyr
+
+## Basics
+
+The geometry layer defines the plot type and takes the format geom_X where X is the plot type.
+
+Aesthetic mappings describe how properties of the data connect with features of the graph (axis position, color, size, etc.) Define aesthetic mappings with the aes() function.
+
+aes() uses variable names from the object component (for example, total rather than murders$total).
+
+```{r}
+ggplot(data = murders)
+
+murders %>% ggplot()
+
+p <- ggplot(data = murders)
+
+# add points layer to predefined ggplot object
+p + geom_point(aes(population/10^6, total))
+
+# add text layer to scatterplot
+p + geom_point(aes(population/10^6, total)) +
+    geom_text(aes(population/10^6, total, label = abb))
+
+```
+
+Global aesthetic mappings apply to all geometries and can be defined when you initially call ggplot(). All the geometries added as layers will default to this mapping. Local aesthetic mappings add additional information or override the default mappings.
+
+```{r}
+# simplify code by adding global aesthetic
+p <- murders %>% ggplot(aes(population/10^6, total, label = abb))
+p + geom_point(size = 3) +
+    geom_text(nudge_x = 1.5)
+
+# local aesthetics override global aesthetics
+p + geom_point(size = 3) +
+    geom_text(aes(x = 10, y = 800, label = "Hello there!"))
+```
+
+
+
+Convert the x-axis to log scale with scale_x_continuous(trans = "log10") or scale_x_log10(). Similar functions exist for the y-axis.
+
+Add axis titles with xlab() and ylab() functions. Add a plot title with the ggtitle() function.
+Add a color mapping that colors points by a variable by defining the col argument within aes(). To color all points the same way, define col outside of aes().
+
+Add a line with the geom_abline() geometry. geom_abline() takes arguments slope (default = 1) and intercept (default = 0). Change the color with col or color and line type with lty.
+
+```{r}
+# log base 10 scale the x-axis and y-axis
+p + geom_point(size = 3) +
+    geom_text(nudge_x = 0.05) +
+    scale_x_continuous(trans = "log10") +
+    scale_y_continuous(trans = "log10")
+    
+# efficient log scaling of the axes
+p + geom_point(size = 3) +
+    geom_text(nudge_x = 0.075) +
+    scale_x_log10() +
+    scale_y_log10()
+
+# add labels and title
+p + geom_point(size = 3) +
+    geom_text(nudge_x = 0.075) +
+    scale_x_log10() +
+    scale_y_log10() +
+    xlab("Population in millions (log scale)") +
+    ylab("Total number of murders (log scale)") +
+    ggtitle("US Gun Murders in 2010")
+
+
+# redefine p to be everything except the points layer
+p <- murders %>%
+    ggplot(aes(population/10^6, total, label = abb)) +
+    geom_text(nudge_x = 0.075) +
+    scale_x_log10() +
+    scale_y_log10() +
+    xlab("Population in millions (log scale)") +
+    ylab("Total number of murders (log scale)") +
+    ggtitle("US Gun Murders in 2010")
+    
+# make all points blue
+p + geom_point(size = 3, color = "blue")
+
+# color points by region
+p + geom_point(aes(col = region), size = 3)
+```
+
+## Gun Murders Scatterplot Full Example
+
+The style of a ggplot graph can be changed using the theme() function.
+
+The ggthemes package adds additional themes.
+
+The ggrepel package includes a geometry that repels text labels, ensuring they do not overlap with each other: geom_text_repel().
+
+```{r}
+# define the intercept
+r <- murders %>%
+    summarize(rate = sum(total) / sum(population) * 10^6) %>%
+    .$rate
+    
+# make the plot, combining all elements
+murders %>%
+    ggplot(aes(population/10^6, total, label = abb)) +
+    geom_abline(intercept = log10(r), lty = 2, color = "darkgrey") +
+    geom_point(aes(col = region), size = 3) +
+    geom_text_repel() +
+    scale_x_log10() +
+    scale_y_log10() +
+    xlab("Population in millions (log scale)") +
+    ylab("Total number of murders (log scale)") +
+    ggtitle("US Gun Murders in 2010") +
+    scale_color_discrete(name = "Region") +
+    theme_economist()
+```
+
+## Other Types of Plots
+
+### Histograms
+
+
+geom_histogram() creates a histogram. Use the binwidth argument to change the width of bins, the fill argument to change the bar fill color, and the col argument to change bar outline color.
+
+geom_density() creates smooth density plots. Change the fill color of the plot with the fill argument.
+
+geom_qq() creates a quantile-quantile plot. This geometry requires the sample argument. By default, the data are compared to a standard normal distribution with a mean of 0 and standard deviation of 1. This can be changed with the dparams argument, or the sample data can be scaled.
+
+```{r}
+data(heights)
+
+p <- heights %>% filter(sex=="Male") %>% ggplot(aes(x=height))
+
+# basic histogram
+p + geom_histogram()
+p + geom_histogram(binwidth=1)
+
+# histogram with blue fill, black outline, labels and title
+p + geom_histogram(binwidth=1, fill="blue", col="black") +
+  xlab("Male heights in inches") +
+  ggtitle("Histogram")
+
+
+```
+
+
+### Smooth Density Plots
+
+```{r}
+p + geom_density()
+p + geom_density(fill = "blue")
+```
+
+### Q-Q Plots
+
+```{r}
+
+# basic QQ-plot
+p <- heights %>% filter(sex == "Male") %>%
+    ggplot(aes(sample = height))
+p + geom_qq()
+
+# QQ-plot against a normal distribution with same mean/sd as data
+params <- heights %>%
+    filter(sex == "Male") %>%
+    summarize(mean = mean(height), sd = sd(height))
+    p + geom_qq(dparams = params) +
+    geom_abline()
+    
+# QQ-plot of scaled data against the standard normal distribution
+heights %>%
+    ggplot(aes(sample = scale(height))) +
+    geom_qq() +
+    geom_abline()
+
+```
+
+
+## DPLYR Features
+
+### Summarize
+
+```{r heights}
+summary(heights)
+
+s <- heights %>%
+    filter(sex == "Male") %>%
+    summarize(avg = mean(height), 
+              stdev = sd(height),
+              min = min(height),
+              max = max(height))
+
+s
+```
+
+### Dot Placeholder
+
+```{r murders}
+us_murder_rate <- murders %>%
+  summarize(rate = sum(total) / sum(population) * 1000000) %>%
+  .$rate
+
+us_murder_rate
+```
+
+### Group By
+
+```{r}
+heights %>% 
+  group_by(sex) %>%
+  summarize(avg = mean(height),
+            stdev = sd(height))
+
+
+```
+
+
+### Sorting
+
+```{r}
+murders <- murders %>% mutate(murder_rate = total/population * 100000)
+murders %>% arrange(desc(murder_rate)) %>% head()
+murders %>% arrange(desc(murder_rate)) %>% top_n(10)
+```
+
+
+## Case Study: Trends in World Health & Economics
+
+```{r gapminder}
+head(gapminder)
+
+gapminder %>%
+    filter(year == 2015 & country %in% c("Sri Lanka", 
+                                         "Turkey", 
+                                         "Poland", 
+                                         "South Korea", 
+                                         "Malaysia",
+                                         "Russia",
+                                         "Pakistan",
+                                         "Vietnam",
+                                         "Thailand",
+                                         "South Africa")) %>%
+  arrange(desc(infant_mortality)) %>%
+  select(country, infant_mortality)
+
+
+filter(gapminder, year == 1962) %>%
+  ggplot( aes(fertility, life_expectancy, color = continent)) +
+  geom_point() 
+
+filter(gapminder, year%in%c(1962, 2012)) %>%
+  ggplot(aes(fertility, life_expectancy, col = continent)) +
+  geom_point() +
+  facet_grid(.~year)
+```
+
+
+### Examining Life Expectancy by Year
+
+```{r}
+years <- c(1962, 1980, 1990, 2000, 2012)
+continents <- c("Europe", "Asia")
+gapminder %>% 
+  filter(year %in% years & continent %in% continents) %>%
+  ggplot( aes(fertility, life_expectancy, col = continent)) +
+  geom_point() +
+  facet_wrap(~year) 
+```
+
+### Examining Fertility and Life Expectancy through Time Series
+
+
+```{r}
+gapminder %>% 
+  filter(country == "United States") %>% 
+  ggplot(aes(year, fertility)) +
+  geom_line()
+
+countries <- c("South Korea","Germany")
+labels <- data.frame(country = countries, x = c(1975,1965), y = c(60,72))
+
+gapminder %>% 
+  filter(country %in% countries) %>% 
+  ggplot(aes(year, life_expectancy, col=country)) +
+  geom_line() +
+  geom_text(data=labels, aes(x, y, label=country), size=5) +
+  theme(legend.position="none")
+
+labels2 <- data.frame(country = countries, x = c(1975,1965), y = c(5,3))
+
+gapminder %>% 
+  filter(country %in% countries & !is.na(fertility)) %>% 
+  ggplot(aes(year, fertility, col=country)) +
+  geom_line() +
+  geom_text(data=labels2, aes(x, y, label=country), size=5) +
+  theme(legend.position="none")
+
+
+```
+
+
+### Log Transformation to Rank GDP Data
+
+We use GDP data to compute income in US dollars per day, adjusted for inflation.
+
+Log transformations convert multiplicative changes into additive changes.
+
+Common transformations are the log base 2 transformation and the log base 10 transformation. The choice of base depends on the range of the data. The natural log is not recommended for visualization because it is difficult to interpret.
+
+```{r}
+gapminder <- gapminder %>%
+    mutate(dollars_per_day = gdp/population/365)
+
+past_year <- 1970
+gapminder %>%
+    filter(year == past_year & !is.na(gdp)) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black")
+
+gapminder %>%
+    filter(year == past_year & !is.na(gdp)) %>%
+    ggplot(aes(log2(dollars_per_day))) +
+    geom_histogram(binwidth = 1, color = "black")
+
+```
+
+
+
