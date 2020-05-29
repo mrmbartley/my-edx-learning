@@ -348,4 +348,32 @@ gapminder %>%
 ```
 
 
+### Distribution of Income by Geographical Region
+
+Due to the number of regions included in the data, it is difficult to understand their respective distributions using histrograms or density plots. Instead, we can use side-by-side box plots, ordered by median income and colour coded by continent.
+
+Using a log2 scale we are able to discern more meaningfully, the differences between the lower income and higher income regions. We can also add the points for individual observations as well to more closely examine the results.
+
+
+```{r gapminder income boxplots}
+
+p <- gapminder %>%
+    filter(year == past_year & !is.na(gdp)) %>%
+    mutate(region = reorder(region, dollars_per_day, FUN = median)) %>%    # reorder
+    ggplot(aes(region, dollars_per_day, fill = continent)) +    # color by continent
+    geom_boxplot() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    xlab("")
+p + ggtitle("Box Plot of Income by Region") +
+  ylab("Income per Day Based on GDP")
+
+p + scale_y_continuous(trans = "log2") +
+  ggtitle("Box Plot of Income by Region - Log2 Scale") +
+  ylab("Income per Day Based on GDP")
+p + scale_y_continuous(trans = "log2") + 
+  geom_point(show.legend = FALSE) +
+  ggtitle("Box Plot of Income by Region - Log2 Scale w/ Observations") +
+  ylab("Income per Day Based on GDP")
+```
+
 
