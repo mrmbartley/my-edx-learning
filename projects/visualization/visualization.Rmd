@@ -364,16 +364,37 @@ p <- gapminder %>%
     geom_boxplot() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
     xlab("")
+
 p + ggtitle("Box Plot of Income by Region") +
   ylab("Income per Day Based on GDP")
 
 p + scale_y_continuous(trans = "log2") +
   ggtitle("Box Plot of Income by Region - Log2 Scale") +
   ylab("Income per Day Based on GDP")
+
 p + scale_y_continuous(trans = "log2") + 
   geom_point(show.legend = FALSE) +
   ggtitle("Box Plot of Income by Region - Log2 Scale w/ Observations") +
   ylab("Income per Day Based on GDP")
+```
+
+We can clearly see that Western continents had a significantly higher income in 1970 based on GDP by population. Let's see how this compares over time.
+
+```{r fig.height=20, fig.width=8}
+years <- c(1962, 1980, 1990, 2000, 2012)
+
+p <- gapminder %>%
+    filter(year %in% years & !is.na(gdp)) %>%
+    mutate(region = reorder(region, dollars_per_day, FUN = median)) %>%    # reorder
+    ggplot(aes(region, dollars_per_day, fill = continent)) +    # color by continent
+    geom_boxplot() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    xlab("") +
+    facet_wrap(~year, ncol=1)
+
+p + scale_y_continuous(trans = "log2") +
+     geom_point(show.legend = FALSE)
+
 ```
 
 
