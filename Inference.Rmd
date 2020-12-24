@@ -1,0 +1,1570 @@
+---
+title: "Inference"
+author: "Matt Bartley"
+date: "8/30/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dslabs)
+library(gridExtra)
+```
+
+# Data Science: Inference and Modeling
+
+## Section 1: Parameters and Estimates
+
+The goals for this section are as follows:
+* understanding how to use a sampling model to perform a poll
+* explain the terms population, parameter, and sample
+* use a sample to estimate the population proportion from the sample average
+* calculate expected value and standard deviation of sample average
+
+
+
+
+```{r poll}
+take_poll(25)    # draw 25 beads
+```
+
+### Assignment
+
+Write a line of code that calculates the standard error se of a sample average when you poll 25 people in the population. Generate a sequence of 100 proportions of Democrats p that vary from 0 (no Democrats) to 1 (all Democrats).
+
+Plot se versus p for the 100 different proportions.
+
+```{r Exercise 1.5}
+# `N` represents the number of people polled
+N <- 25
+
+# Create a variable `p` that contains 100 proportions ranging from 0 to 1 using the `seq` function
+p <- seq(0,1,length.out = 100)
+
+# Create a variable `se` that contains the standard error of each sample average
+se <- sqrt(p*(1-p))/sqrt(N)
+
+# Plot `p` on the x-axis and `se` on the y-axis
+plot(p,se)
+```
+
+Using the same code as in the previous exercise, create a for-loop that generates three plots of p versus se when the sample sizes equal N=25, N=100, and N=1000.
+
+```{r Exercise 1.6}
+# The vector `p` contains 100 proportions of Democrats ranging from 0 to 1 using the `seq` function
+p <- seq(0, 1, length = 100)
+
+# The vector `sample_sizes` contains the three sample sizes
+sample_sizes <- c(25, 100, 1000)
+
+# Write a for-loop that calculates the standard error `se` for every value of `p` for each of the three samples sizes `N` in the vector `sample_sizes`. Plot the three graphs, using the `ylim` argument to standardize the y-axis across all three plots.
+
+for (n in 1:length(sample_sizes))
+{
+  se <- sqrt(p*(1-p))/sqrt(sample_sizes[n])
+  plot(p, se, ylim = c(0,0.1))
+}
+
+
+```
+
+Say the actual proportion of Democratic voters is p=0.45. In this case, the Republican party is winning by a relatively large margin of d=−0.1, or a 10% margin of victory. What is the standard error of the spread 2X¯−1 in this case?
+
+```{r Exercise 1.9}
+# `N` represents the number of people polled
+N <- 25
+
+# `p` represents the proportion of Democratic voters
+p <- 0.45
+
+# Calculate the standard error of the spread. Print this value to the console.
+se <- function(p, N) {
+  2*sqrt(p*(1-p)/N)
+}
+se(p,N)
+
+```
+
+## Section 2: Central Limit Theorem
+
+The goals for this section are as follows:
+* use the CLT to calculate that probability that a sample estimate is close to the population proportion
+* run a Monte Carlo simulation to corroborate theoretical results built using probability theory
+* estimate the spread based on estimates of mean and standard error of the mean
+* understand why bias can mean that larger sample sizes aren't necessarily better
+
+
+### Plug-in Estimate
+
+We want to assesse the probability that our estimate is within a specific distance of true p. To do this we leverage the CLT by assuming the distribution of the mean is approximately normal. In standardizing the formula, we notice that the standard error of the mean is also required. We can plug in an estimate for this as well.
+
+```{r}
+X_hat <- 0.48
+se <- sqrt(X_hat*(1-X_hat)/25)
+pnorm(0.01/se) - pnorm(-0.01/se)
+```
+
+Using Monte Carlo simulation on a set value of p looks like the following:
+
+```{r Monte Carlo}
+
+p <- 0.45   # unknown p to estimate
+N <- 1000
+
+# simulate one poll of size N and determine x_hat
+
+x <- sample(c(0,1), size = N, replace = TRUE, prob = c(1-p,p))
+x_hat <- mean(x)
+
+# simulate B polls of size N and determine average x_hat
+B <- 10000    # number of replicates
+N <- 1000    # sample size per replicate
+x_hat <- replicate(B, {
+    x <- sample(c(0,1), size = N, replace = TRUE, prob = c(1-p, p))
+    mean(x)
+})
+
+p1 <- data.frame(x_hat = x_hat) %>%
+    ggplot(aes(x_hat)) +
+    geom_histogram(binwidth = 0.005, color = "black")
+p2 <- data.frame(x_hat = x_hat) %>%
+    ggplot(aes(sample = x_hat)) +
+    stat_qq(dparams = list(mean = mean(x_hat), sd = sd(x_hat))) +
+    geom_abline() +
+    ylab("X_hat") +
+    xlab("Theoretical normal")
+grid.arrange(p1, p2, nrow=1)
+```
+
+
+
+
+An extremely large poll would theoretically be able to predict election results almost perfectly.
+
+These sample sizes are not practical. In addition to cost concerns, polling doesn't reach everyone in the population (eventual voters) with equal probability, and it also may include data from outside our population (people who will not end up voting).
+
+These systematic errors in polling are called bias. We will learn more about bias in the future.
+
+```{r}
+N <- 100000
+p <- seq(0.35, 0.65, length = 100)
+SE <- sapply(p, function(x) 2*sqrt(x*(1-x)/N))
+data.frame(p = p, SE = SE) %>%
+    ggplot(aes(p, SE)) +
+    geom_line()
+```
+
+
+### Section 2 Assessment
+
+Question 1
+
+Write function called take_sample that takes the proportion of Democrats  and the sample size  as arguments and returns the sample average of Democrats (1) and Republicans (0).
+
+Calculate the sample average if the proportion of Democrats equals 0.45 and the sample size is 100.
+
+```{r}
+# Write a function called `take_sample` that takes `p` and `N` as arguements and returns the average value of a randomly sampled population.
+take_sample <- function(p, N) {
+  mean(sample(c(1,0), N, replace = TRUE, prob = c(p,1-p)))
+}
+
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Define `p` as the proportion of Democrats in the population being polled
+p <- 0.45
+
+# Define `N` as the number of people polled
+N <- 100
+
+# Call the `take_sample` function to determine the sample average of `N` randomly selected people from a population containing a proportion of Democrats equal to `p`. Print this value to the console.
+take_sample(p,N)
+
+
+```
+
+
+Question 2
+
+Assume the proportion of Democrats in the population  equals 0.45 and that your sample size  is 100 polled voters. The take_sample function you defined previously generates our estimate,X.
+
+Replicate the random sampling 10,000 times and calculate p - X_hat for each random sample. Save these differences as a vector called errors. Find the average of errors and plot a histogram of the distribution.
+ 
+
+```{r}
+# Define `p` as the proportion of Democrats in the population being polled
+p <- 0.45
+
+# Define `N` as the number of people polled
+N <- 100
+
+# The variable `B` specifies the number of times we want the sample to be replicated
+B <- 10000
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Create an objected called `errors` that replicates subtracting the result of the `take_sample` function from `p` for `B` replications
+errors <- replicate(B, {
+    x <- take_sample(p,N)
+    p - x
+})
+
+# Calculate the mean of the errors. Print this value to the console.
+mean(errors)
+
+# Histogram
+
+hist(errors)
+
+
+```
+
+
+Question 4
+
+The error p - X is a random variable. In practice, the error is not observed because we do not know the actual proportion of Democratic voters, p. However, we can describe the size of the error by constructing a simulation.
+
+```{r}
+# Define `p` as the proportion of Democrats in the population being polled
+p <- 0.45
+
+# Define `N` as the number of people polled
+N <- 100
+
+# The variable `B` specifies the number of times we want the sample to be replicated
+B <- 10000
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# We generated `errors` by subtracting the estimate from the actual proportion of Democratic voters
+errors <- replicate(B, p - take_sample(p, N))
+
+# Calculate the mean of the absolute value of each simulated error. Print this value to the console.
+mean(abs(errors))
+
+
+```
+
+
+Question 5
+
+The standard error is related to the typical size of the error we make when predicting. We say size because, as we just saw, the errors are centered around 0. In that sense, the typical error is 0. For mathematical reasons related to the central limit theorem, we actually use the standard deviation of errors rather than the average of the absolute values.
+
+As we have discussed, the standard error is the square root of the average squared distance (X - p)^2. The standard deviation is defined as the square root of the distance squared.
+
+
+```{r}
+# Define `p` as the proportion of Democrats in the population being polled
+p <- 0.45
+
+# Define `N` as the number of people polled
+N <- 100
+
+# The variable `B` specifies the number of times we want the sample to be replicated
+B <- 10000
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# We generated `errors` by subtracting the estimate from the actual proportion of Democratic voters
+errors <- replicate(B, p - take_sample(p, N))
+
+# Calculate the standard deviation of `errors`
+sqrt(mean(errors^2))
+
+
+
+```
+
+Question 6
+
+The theory we just learned tells us what this standard deviation is going to be because it is the standard error of X.
+
+Estimate the standard error given an expected value of 0.45 and a sample size of 100.
+
+
+```{r}
+# Define `p` as the expected value equal to 0.45
+p <- 0.45
+
+# Define `N` as the sample size
+N <- 100
+
+# Calculate the standard error
+sqrt(p*(1-p)/N)
+
+```
+
+
+Question 7
+
+In practice, we don't know , so we construct an estimate of the theoretical prediction based by plugging in 
+X for p. Calculate the standard error of the estimate: SE(X).
+
+
+```{r}
+# Define `p` as a proportion of Democratic voters to simulate
+p <- 0.45
+
+# Define `N` as the sample size
+N <- 100
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Define `X` as a random sample of `N` voters with a probability of picking a Democrat ('1') equal to `p`
+X <- take_sample(p, N)
+
+# Define `X_bar` as the average sampled proportion
+X_bar = mean(X)
+
+# Calculate the standard error of the estimate. Print the result to the console.
+sqrt(X_bar * (1-X_bar)/N)
+
+
+```
+
+
+Question 8
+
+The standard error estimates obtained from the Monte Carlo simulation, the theoretical prediction, and the estimate of the theoretical prediction are all very close, which tells us that the theory is working. This gives us a practical approach to knowing the typical error we will make if we predict p with X_hat. The theoretical result gives us an idea of how large a sample size is required to obtain the precision we need. Earlier we learned that the largest standard errors occur for p=0.05.
+
+Create a plot of the largest standard error for  ranging from 100 to 5,000. Based on this plot, how large does the sample size have to be to have a standard error of about 1%?
+
+```{r}
+N <- seq(100, 5000, len = 100)
+p <- 0.5
+se <- sqrt(p*(1-p)/N)
+plot(N,se)
+```
+
+
+
+Question 9
+
+For N=100, the central limit theorem tells us that the distribution of is... approximately normal with expected value p and standard error sqrt(p(1-p)/N).
+
+
+Question 10
+
+We calculated a vector errors that contained, for each simulated sample, the difference between the actual value p and our estimate X.
+
+The errors X-p are: approximately normal with expected value 0 and standard error sqrt(p(1-p)/N).
+
+
+
+Question 11
+
+
+Make a qq-plot of the errors you generated previously to see if they follow a normal distribution.
+
+```{r}
+# Define `p` as the proportion of Democrats in the population being polled
+p <- 0.45
+
+# Define `N` as the number of people polled
+N <- 100
+
+# The variable `B` specifies the number of times we want the sample to be replicated
+B <- 10000
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Generate `errors` by subtracting the estimate from the actual proportion of Democratic voters
+errors <- replicate(B, p - take_sample(p, N))
+
+# Generate a qq-plot of `errors` with a qq-line showing a normal distribution
+qqnorm(errors)
+qqline(errors)
+
+
+```
+
+
+Question 12
+
+If p=0.45 and N=100, use the central limit theorem to estimate the probability that X > 0.5.
+
+```{r}
+# Define `p` as the proportion of Democrats in the population being polled
+p <- 0.45
+
+# Define `N` as the number of people polled
+N <- 100
+
+# Calculate the probability that the estimated proportion of Democrats in the population is greater than 0.5. Print this value to the console.
+
+1-pnorm(0.5,mean=0.45,sd=sqrt(p*(1-p)/N))
+
+```
+
+
+Question 13
+
+Assume you are in a practical situation and you don't know p. Take a sample of size N and obtain a sample average of X = 0.51.
+
+What is the CLT approximation for the probability that your error size is equal or larger than 0.01?
+
+```{r}
+# Define `N` as the number of people polled
+N <-100
+
+# Define `X_hat` as the sample average
+X_hat <- 0.51
+
+# Define `se_hat` as the standard error of the sample average
+se_hat <- sqrt(X_hat*(1-X_hat)/N)
+
+# Calculate the probability that the error is 0.01 or larger
+2*(1-pnorm(0.01,mean=0,sd=se_hat))
+pnorm(-0.01,mean=0,sd=se_hat) + (1-pnorm(0.01,mean=0,sd=se_hat))
+
+```
+
+
+
+
+## Section 3: Confidence Intervals
+
+Confidence intervals help us understand the level of error in our estimation. We can use the properties from the CLT with respect to our estimator p to provide a range for our estimate. The CLT will tell us that the true p will fall within this computed range with our chosen confidence level. A higher confidence level will require a larger interval. Let's run a monte carlo simulation to demonstrate how intervals change over time.
+
+```{r}
+data("nhtemp")
+data.frame(year = as.numeric(time(nhtemp)), temperature = as.numeric(nhtemp)) %>%
+    ggplot(aes(year, temperature)) +
+    geom_point() +
+    geom_smooth() +
+    ggtitle("Average Yearly Temperatures in New Haven")
+
+p <- 0.45
+N <- 1000
+
+myCI <- function(X) {
+  X_hat <- mean(X)
+  SE_hat <- sqrt(X_hat * (1-X_hat)/N)
+  print(c(X_hat - 2*SE_hat, X_hat + 2*SE_hat))
+}
+
+for (i in 1:10) {
+  myCI(sample(c(0,1), size=N, replace=TRUE, prob=c(1-p,p)))
+}
+
+
+```
+
+
+We can further use Monte Carlo simulation to examine how often our probability p is within the bounds of our confidence intervals by generating multiple random samples and estimating the intervals.
+
+```{r}
+B <- 10000
+
+inside <- replicate(B, {
+  X <- sample(c(0,1), size=N, replace=TRUE, prob=c(1-p,p))
+  X_hat <- mean(X)
+  SE_hat <- sqrt(X_hat * (1-X_hat)/N)
+  between(p, X_hat - 2*SE_hat, X_hat + 2*SE_hat)
+})
+mean(inside)
+
+```
+
+
+### Section 3.1 Assessment
+
+Question 1.
+
+```{r}
+
+# Load the data
+data(polls_us_election_2016)
+
+# Generate an object `polls` that contains data filtered for polls that ended on or after October 31, 2016 in the United States
+polls <- polls_us_election_2016 %>% filter(enddate >= as.Date("2016-10-31") & state=="U.S.")
+
+# How many rows does `polls` contain? Print this value to the console.
+nrow(polls)
+
+# Assign the sample size of the first poll in `polls` to a variable called `N`. Print this value to the console.
+N <- polls$samplesize[1]
+N
+
+# For the first poll in `polls`, assign the estimated percentage of Clinton voters to a variable called `X_hat`. Print this value to the console.
+X_hat <- polls$rawpoll_clinton[1]/100
+X_hat
+
+# Calculate the standard error of `X_hat` and save it to a variable called `se_hat`. Print this value to the console.
+se_hat <- sqrt(X_hat * (1-X_hat)/N)
+se_hat
+
+# Use `qnorm` to calculate the 95% confidence interval for the proportion of Clinton voters. Save the lower and then the upper confidence interval to a variable called `ci`.
+ci <- c(X_hat - qnorm(0.975)*se_hat, X_hat + qnorm(0.975)*se_hat)
+ci
+
+
+```
+
+Question 2
+
+```{r}
+# The `polls` object that filtered all the data by date and nation has already been loaded. Examine it using the `head` function.
+head(polls)
+
+# Create a new object called `pollster_results` that contains columns for pollster name, end date, X_hat, se_hat, lower confidence interval, and upper confidence interval for each poll.
+pollster_results <- polls %>% 
+  mutate(X_hat = rawpoll_clinton/100, 
+         se_hat = sqrt(X_hat * (1-X_hat)/samplesize),
+         lower = X_hat - qnorm(0.975)*se_hat,
+         upper = X_hat + qnorm(0.975)*se_hat) %>% 
+    select(c(pollster, enddate, X_hat, se_hat, lower, upper))
+head(pollster_results)
+
+```
+
+Question 3
+
+```{r}
+
+# The `pollster_results` object has already been loaded. Examine it using the `head` function.
+head(pollster_results)
+
+# Add a logical variable called `hit` that indicates whether the actual value exists within the confidence interval of each poll. Summarize the average `hit` result to determine the proportion of polls with confidence intervals include the actual value. Save the result as an object called `avg_hit`.
+avg_hit <- pollster_results %>% mutate(hit = (lower<=0.482 & upper >= 0.482)) %>% summarize(avg=mean(hit))
+  
+  
+
+```
+
+
+
+Question 5:
+A much smaller proportion of the polls than expected produce confidence intervals containing p. Notice that most polls that fail to include p are underestimating. The rationale for this is that undecided voters historically divide evenly between the two main candidates on election day.
+
+In this case, it is more informative to estimate the spread or the difference between the proportion of two candidates d, o 0.842 - 0.461 = 0.021 for this election.
+
+```{r}
+# Add a statement to this line of code that will add a new column named `d_hat` to `polls`. The new column should contain the difference in the proportion of voters.
+polls <- polls_us_election_2016 %>% filter(enddate >= "2016-10-31" & state == "U.S.") %>% mutate(d_hat = (rawpoll_clinton - rawpoll_trump)/100)
+
+
+# Assign the sample size of the first poll in `polls` to a variable called `N`. Print this value to the console.
+N <- polls$samplesize[1]
+N
+
+# Assign the difference `d_hat` of the first poll in `polls` to a variable called `d_hat`. Print this value to the console.
+d_hat <- polls$dhat[1]
+
+
+# Assign proportion of votes for Clinton to the variable `X_hat`.
+X_hat <- (d_hat+1)/2
+
+# Calculate the standard error of the spread and save it to a variable called `se_hat`. Print this value to the console.
+se_hat <- 2 * sqrt(X_hat * (1-X_hat) / N)
+
+
+# Use `qnorm` to calculate the 95% confidence interval for the difference in the proportions of voters. Save the lower and then the upper confidence interval to a variable called `ci`.
+ci <- c(d_hat - qnorm(0.975)*se_hat, d_hat + qnorm(0.975)*se_hat)
+ci
+
+```
+
+Question 6:
+Create a new object called pollster_results that contains the pollster's name, the end date of the poll, the difference in the proportion of voters who declared a vote either, and the lower and upper bounds of the confidence interval for the estimate.
+
+```{r}
+# The subset `polls` data with 'd_hat' already calculated has been loaded. Examine it using the `head` function.
+head(polls)
+
+# Create a new object called `pollster_results` that contains columns for pollster name, end date, d_hat, lower confidence interval of d_hat, and upper confidence interval of d_hat for each poll.
+
+pollster_results <- polls %>% 
+  mutate(d_hat = (rawpoll_clinton - rawpoll_trump)/100, 
+         X_hat = (d_hat+1)/2,
+         se_hat = 2 * sqrt(X_hat * (1-X_hat) / samplesize),
+         lower = d_hat - qnorm(0.975)*se_hat,
+         upper = d_hat + qnorm(0.975)*se_hat) %>% 
+    select(c(pollster, enddate, d_hat, se_hat, lower, upper))
+head(pollster_results)
+
+
+```
+
+Question 7:
+What proportion of confidence intervals for the difference between the proportion of voters included d, the actual difference in election day?
+
+```{r}
+
+# The `pollster_results` object has already been loaded. Examine it using the `head` function.
+head(pollster_results)
+
+# Add a logical variable called `hit` that indicates whether the actual value (0.021) exists within the confidence interval of each poll. Summarize the average `hit` result to determine the proportion of polls with confidence intervals include the actual value. Save the result as an object called `avg_hit`.
+avg_hit <- pollster_results %>% mutate(hit = (lower<=0.021 & upper >= 0.021)) %>% summarize(avg=mean(hit))
+avg_hit
+
+```
+
+
+Question 8:
+
+Although the proportion of confidence intervals that include the actual difference between the proportion of voters increases substantially, it is still lower that 0.95. In the next chapter, we learn the reason for this.
+
+To motivate our next exercises, calculate the difference between each poll's estimate d and the actual d=0.021. Stratify this difference, or error, by pollster in a plot.
+
+```{r}
+# The `polls` object has already been loaded. Examine it using the `head` function.
+head(polls)
+
+# Add variable called `error` to the object `polls` that contains the difference between d_hat and the actual difference on election day. Then make a plot of the error stratified by pollster.
+polls <- polls %>% mutate(error = d_hat - 0.021)
+
+polls %>% ggplot(aes(x = error, y = pollster)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+
+Question 9:
+Remake the plot you made for the previous exercise, but only for pollsters that took five or more polls.
+
+You can use dplyr tools group_by and n to group data by a variable of interest and then count the number of observations in the groups. The function filter filters data piped into it by your specified condition.
+
+
+```{r}
+# The `polls` object has already been loaded. Examine it using the `head` function.
+head(polls)
+
+# Add variable called `error` to the object `polls` that contains the difference between d_hat and the actual difference on election day. Then make a plot of the error stratified by pollster, but only for pollsters who took 5 or more polls.
+
+polls %>% mutate(error = d_hat - 0.021) %>% group_by(pollster) %>% filter(n() >= 5) %>% ggplot(aes(x = error, y = pollster)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+
+
+## Section 4: Statistical Models
+
+After completing Section 4, you will be able to:
+
+* Understand how aggregating data from different sources, as poll aggregators do for poll data, can improve the precision of a prediction.
+* Understand how to fit a multilevel model to the data to forecast, for example, election results.
+* Explain why a simple aggregation of data is insufficient to combine results because of factors such as pollster bias.
+* Use a data-driven model to account for additional types of sampling variability such as pollster-to-pollster variability.
+
+
+Let's examine why Nate Silver was so confident that Barrack Obama would win the election (90%) as compared with polls suggesting it could be a toss up. We will use Monte Carlo simulation to do this. We can generate the results for 12 polls taken prior to the election using the actual outcome (spread) of 3.9%.
+
+
+```{r}
+d <- 0.039
+Ns <- c(1298, 533, 1342, 897, 774, 254, 812, 324, 1291, 1056, 2172, 516)
+p <- (d+1)/2
+
+# calculate confidence interval for the spread
+confidence_intervals <- sapply(Ns, function(N){
+  X <- sample(c(0,1), size=N, replace=TRUE, prob = c(1-p, p))
+  X_hat <- mean(X)
+  SE_hat <- sqrt(X_hat * (1-X_hat)/N)
+  2*c(X_hat,X_hat-2*SE_hat,X_hat+2*SE_hat)-1
+})
+
+confidence_intervals
+
+# generate a data frame storing results
+polls <- data.frame(poll = 1:ncol(confidence_intervals),
+                    t(confidence_intervals),sample_size=Ns)
+names(polls) <- c("poll","estimate","low","high","sample_size")
+polls
+
+
+```
+
+
+If we look at individual polls we are led to the same conclusion as pundits but taking the same approach as poll aggregators lends additional insight. As we wouldn't have access to the individual polls in real life, we need to use mathematics to determine what the aggregation of all polls would look like.
+
+```{r}
+# weighted average of the poll results
+d_hat <- polls %>% summarize(avg=sum(estimate*sample_size)/sum(sample_size)) %>% .$avg
+d_hat
+
+# margin of error
+p_hat <- (1+d_hat)/2
+moe <- 2*1.96*sqrt(p_hat*(1-p_hat)/sum(polls$sample_size))
+
+round(d_hat*100,1)
+round(moe*100, 1)
+```
+
+We can see that the aggregated polls produces a d of 4.7% with margin of error 1.8%.
+
+
+### Section 4 Assessment
+
+Question 1:
+
+We have been using urn models to motivate the use of probability models. However, most data science applications are not related to data obtained from urns. More common are data that come from individuals. Probability plays a role because the data come from a random sample. The random sample is taken from a population and the urn serves as an analogy for the population.
+
+Let's revisit the heights dataset. For now, consider x to be the heights of all males in the data set. Mathematically speaking, x is our population. Using the urn analogy, we have an urn with the values of x in it.
+
+What are the population average and standard deviation of our population?
+
+```{r}
+# Load the 'dslabs' package and data contained in 'heights'
+library(dslabs)
+data(heights)
+
+# Make a vector of heights from all males in the population
+x <- heights %>% filter(sex == "Male") %>%
+  .$height
+
+# Calculate the population average. Print this value to the console.
+mean(x)
+
+# Calculate the population standard deviation. Print this value to the console.
+sd(x)
+
+```
+
+Question 2:
+
+Call the population average computed above mu and the standard deviation sigma. Now take a sample of size 50, with replacement, and construct an estimate for mu and sigma.
+
+
+```{r}
+# The vector of all male heights in our population `x` has already been loaded for you. You can examine the first six elements using `head`.
+head(x)
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Define `N` as the number of people measured
+N <- 50
+
+# Define `X` as a random sample from our population `x`
+X<- sample(x, N, replace=TRUE)
+
+# Calculate the sample average. Print this value to the console.
+mean(X)
+
+# Calculate the sample standard deviation. Print this value to the console.
+sd(X)
+
+```
+
+Question 3:
+
+What does the central limit theory tell us about the sample average and how it is related to , the population average?
+
+Question 4:
+
+We will use X as our estimate of the heights in the population from our sample size N. We know from previous exercises that the standard estimate of our error 
+X - mu is sigma / sqrt(N).
+
+Construct a 95% confidence interval for .
+
+
+
+```{r}
+# The vector of all male heights in our population `x` has already been loaded for you. You can examine the first six elements using `head`.
+head(x)
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Define `N` as the number of people measured
+N <- 50
+
+# Define `X` as a random sample from our population `x`
+X <- sample(x, N, replace = TRUE)
+
+# Define `se` as the standard error of the estimate. Print this value to the console.
+se <- sd(X) / sqrt(N)
+se
+
+
+# Construct a 95% confidence interval for the population average based on our sample. Save the lower and then the upper confidence interval to a variable called ci
+
+ci <- c(mean(X) - qnorm(0.975) * se, mean(X) + qnorm(0.975) * se)
+
+
+```
+
+Question 5:
+
+Now run a Monte Carlo simulation in which you compute 10,000 confidence intervals as you have just done. What proportion of these intervals include ?
+
+
+```{r}
+# Define `mu` as the population average
+mu <- mean(x)
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Define `N` as the number of people measured
+N <- 50
+
+# Define `B` as the number of times to run the model
+B <- 10000
+
+# Define an object `res` that contains a logical vector for simulated intervals that contain mu
+res <- replicate(B, {
+  X <- sample(x, N, replace=TRUE)
+  se <- sd(X) / sqrt(N)
+  interval <- c(mean(X) - qnorm(0.975) * se, mean(X) + qnorm(0.975) * se)
+  between(mu, interval[1], interval[2])
+  }
+  )
+
+# Calculate the proportion of results in `res` that include mu. Print this value to the console.
+mean(res)
+
+```
+
+Question 6:
+
+In this section, we used visualization to motivate the presence of pollster bias in election polls. Here we will examine that bias more rigorously. Lets consider two pollsters that conducted daily polls and look at national polls for the month before the election.
+
+Is there a poll bias? Make a plot of the spreads for each poll.
+
+
+```{r}
+# Load the libraries and data you need for the following exercises
+library(dslabs)
+library(dplyr)
+library(ggplot2)
+data("polls_us_election_2016")
+
+# These lines of code filter for the polls we want and calculate the spreads
+polls <- polls_us_election_2016 %>% 
+  filter(pollster %in% c("Rasmussen Reports/Pulse Opinion Research","The Times-Picayune/Lucid") &
+           enddate >= "2016-10-15" &
+           state == "U.S.") %>% 
+  mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100) 
+
+# Make a boxplot with points of the spread for each pollster
+
+polls %>% ggplot(aes(spread, pollster)) + geom_boxplot() + geom_point()
+
+```
+
+
+Question 7:
+
+The data do seem to suggest there is a difference between the pollsters. However, these data are subject to variability. Perhaps the differences we observe are due to chance. Under the urn model, both pollsters should have the same expected value: the election day difference, d.
+
+We will model the observed data  in the following way:
+
+  Yij = d + bi + epsilonij
+
+with i indexing the two pollsters, bi the bias for pollster i, and epsilonij poll to poll chance variability. We assume the epsilon are independent from each other, have expected value  0and standard deviation sigma i regardless of j.
+
+Which of the following statements best reflects what we need to know to determine if our data fit the urn model? Bias values are different (b1 =/= b2).
+
+Question 13:
+
+The answer to the previous question depends on sigma, which we don't know. We learned that we can estimate these values using the sample standard deviation.
+
+Compute the estimates of sigma 1 and 2.
+
+
+```{r}
+# The `polls` data have already been loaded for you. Use the `head` function to examine them.
+head(polls)
+
+# Create an object called `sigma` that contains a column for `pollster` and a column for `s`, the standard deviation of the spread
+sigma <- polls %>% group_by(pollster) %>% mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100) %>% summarize(s = sd(spread))
+
+# Print the contents of sigma to the console
+sigma
+
+```
+
+
+Question 15:
+
+We have constructed a random variable that has expected value b2 - b1, the pollster bias difference. If our model holds, then this random variable has an approximately normal distribution. The standard error of this random variable depends on sigma1 and sigma2, but we can use the sample standard deviations we computed earlier. We have everything we need to answer our initial question: is b2 - b1 different from 0?
+
+Construct a 95% confidence interval for the difference b2 and b1. Does this interval contain zero?
+
+
+```{r}
+# The `polls` data have already been loaded for you. Use the `head` function to examine them.
+head(polls)
+
+# Create an object called `res` that summarizes the average, standard deviation, and number of polls for the two pollsters.
+res <- polls %>% 
+  group_by(pollster) %>% 
+  mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100)%>% 
+  summarize(mu = mean(spread), se = sd(spread), n = n())
+res
+
+
+# Store the difference between the larger average and the smaller in a variable called `estimate`. Print this value to the console.
+estimate <- abs(res$mu[1] - res$mu[2])
+estimate
+
+
+# Store the standard error of the estimates as a variable called `se_hat`. Print this value to the console.
+se_hat <- sqrt(res$se[1]^2 / res$n[1] + res$se[2]^2 / res$n[2])
+se_hat
+
+
+# Calculate the 95% confidence interval of the spreads. Save the lower and then the upper confidence interval to a variable called `ci`.
+ci <- c(estimate - qnorm(0.975)*se_hat, estimate + qnorm(0.975)*se_hat)
+ci
+
+
+```
+
+
+Question 16:
+
+The confidence interval tells us there is relatively strong pollster effect resulting in a difference of about 5%. Random variability does not seem to explain it.
+
+Compute a p-value to relay the fact that chance does not explain the observed pollster effect.
+
+```{r}
+# We made an object `res` to summarize the average, standard deviation, and number of polls for the two pollsters.
+res <- polls %>% group_by(pollster) %>% 
+  summarize(avg = mean(spread), s = sd(spread), N = n()) 
+
+# The variables `estimate` and `se_hat` contain the spread estimates and standard error, respectively.
+estimate <- res$avg[2] - res$avg[1]
+se_hat <- sqrt(res$s[2]^2/res$N[2] + res$s[1]^2/res$N[1])
+
+# Calculate the p-value
+z <- estimate / se_hat
+2*(1-pnorm(z))
+
+```
+
+
+Question 17:
+
+We compute statistic called the t-statistic by dividing our estimate of b2 - b1 by its estimated standard error:
+
+(Y2 - Y1) / sqrt(sigma2^2 / N2 + sigma1^2 / N1)
+
+Later we learn will learn of another approximation for the distribution of this statistic for values of N2 and N1 that aren't large enough for the CLT.
+
+Note that our data has more than two pollsters. We can also test for pollster effect using all pollsters, not just two. The idea is to compare the variability across polls to variability within polls. We can construct statistics to test for effects and approximate their distribution. The area of statistics that does this is called Analysis of Variance or ANOVA. We do not cover it here, but ANOVA provides a very useful set of tools to answer questions such as: is there a pollster effect?
+
+Compute the average and standard deviation for each pollster and examine the variability across the averages and how it compares to the variability within the pollsters, summarized by the standard deviation.
+
+
+```{r}
+# Execute the following lines of code to filter the polling data and calculate the spread
+polls <- polls_us_election_2016 %>% 
+  filter(enddate >= "2016-10-15" &
+           state == "U.S.") %>%
+  group_by(pollster) %>%
+  filter(n() >= 5) %>% 
+  mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100) %>%
+  ungroup()
+
+# Create an object called `var` that contains columns for the pollster, mean spread, and standard deviation. Print the contents of this object to the console.
+var <- polls %>% group_by(pollster) %>% summarise(avg = mean(spread), s = sd(spread))
+var
+
+```
+
+
+
+## Section 5: Bayesian Statistics
+
+Goals:
+
+* Apply Bayes' theorem to calculate the probability of A given B.
+* Understand how to use hierarchical models to make better predictions by considering multiple levels of variability.
+* Compute a posterior probability using an empirical Bayesian approach.
+* Calculate a 95% credible interval from a posterior probability.
+
+With frequentist statistics, our value p is a fixed parameter. Therefore it would not make sense to talk about it in the context of a probability. For example, what is the probability of p being greater than 0.5? Frequentist statstics assumes it has a true value that we will be able to predict with some level of certainty based on the size of our sample (or frequency). In Bayesian statistics we assume the parameter p is random. The other key factor with frequentist statistics is that they purely rely on the frequency of outcomes within a data set whereas Bayesian allows us to contemplate outside information, or prior knowledge.
+
+We can use heirarchical models to investigate levels of pollster variability which reside in the context of Bayesian statistics.
+
+
+
+
+
+### Section 3 Assessment
+
+Question 1
+
+In 1999 in England Sally Clark was found guilty of the murder of two of her sons. Both infants were found dead in the morning, one in 1996 and another in 1998, and she claimed the cause of death was sudden infant death syndrome (SIDS). No evidence of physical harm was found on the two infants so the main piece of evidence against her was the testimony of Professor Sir Roy Meadow, who testified that the chances of two infants dying of SIDS was 1 in 73 million. He arrived at this figure by finding that the rate of SIDS was 1 in 8,500 and then calculating that the chance of two SIDS cases was 8,500 x 8,500 = 73 million.
+
+Based on what we've learned throughout this course, which statement best describes a potential flaw in Sir Meadow's reasoning
+
+Assuming they are independent events.
+
+
+Question 2
+
+Let's assume that there is in fact a genetic component to SIDS and the the probability of the second case given the first equals 1/100, is much higher than 1 in 8,500.
+
+What is the probability of both of Sally Clark's sons dying of SIDS?
+
+```{r}
+# Define `Pr_1` as the probability of the first son dying of SIDS
+Pr_1 <- 1/8500
+
+# Define `Pr_2` as the probability of the second son dying of SIDS
+Pr_2 <- 1/100
+
+# Calculate the probability of both sons dying of SIDS. Print this value to the console.
+Pr_1 * Pr_2
+
+```
+
+
+Question 3
+
+Many press reports stated that the expert claimed the probability of Sally Clark being innocent as 1 in 73 million. Perhaps the jury and judge also interpreted the testimony this way. This probability can be written like this:
+
+Pr(mother is a murderer | two children dead)
+
+Bayes' rule tells us this probability is equal to:
+
+Pr(two children dead | mother is a murderer) * Pr(mother is a murderer) / Pr(two children dead)
+
+
+
+Question 6
+
+Florida is one of the most closely watched states in the U.S. election because it has many electoral votes and the election is generally close. Create a table with the poll spread results from Florida taken during the last days before the election using the sample code.
+
+The CLT tells us that the average of these spreads is approximately normal. Calculate a spread average and provide an estimate of the standard error.
+```{r}
+# Load the libraries and poll data
+library(dplyr)
+library(dslabs)
+data(polls_us_election_2016)
+
+# Create an object `polls` that contains the spread of predictions for each candidate in Florida during the last polling days
+polls <- polls_us_election_2016 %>% 
+  filter(state == "Florida" & enddate >= "2016-11-04" ) %>% 
+  mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100)
+
+# Examine the `polls` object using the `head` function
+head(polls)
+
+# Create an object called `results` that has two columns containing the average spread (`avg`) and the standard error (`se`). Print the results to the console.
+results <- polls %>% summarise(avg = mean(spread), se = sd(spread)/sqrt(n()))
+results
+
+```
+
+
+Question 8
+
+The CLT tells us that our estimate of the spread d_hat has a normal distribution with expected value d and standard deviation sigma, which we calculated in a previous exercise.
+
+Use the formulas for the posterior distribution to calculate the expected value of the posterior distribution if we set mu=0 and tau=0.01.
+
+```{r}
+# The results` object has already been loaded. Examine the values stored: `avg` and `se` of the spread
+results
+
+# Define `mu` and `tau`
+mu <- 0
+tau <- 0.01
+
+# Define a variable called `sigma` that contains the standard error in the object `results`
+sigma <- results$se
+
+# Define a variable called `Y` that contains the average in the object `results`
+Y <- results$avg
+
+# Define a variable `B` using `sigma` and `tau`. Print this value to the console.
+B <- sigma^2 / (sigma^2 + tau^2)
+
+# Calculate the expected value of the posterior distribution
+B*mu + (1-B)*Y
+
+```
+
+
+Question 9
+
+Compute the standard error of the posterior distribution.
+
+```{r}
+# Here are the variables we have defined
+mu <- 0
+tau <- 0.01
+sigma <- results$se
+Y <- results$avg
+B <- sigma^2 / (sigma^2 + tau^2)
+
+# Compute the standard error of the posterior distribution. Print this value to the console.
+sqrt(1 / ((1/sigma^2) + (1/tau^2)))
+
+```
+
+
+Question 10
+Using the fact that the posterior distribution is normal, create an interval that has a 95% of occurring centered at the posterior expected value. Note that we call these credible intervals.
+
+```{r}
+# Here are the variables we have defined in previous exercises
+mu <- 0
+tau <- 0.01
+sigma <- results$se
+Y <- results$avg
+B <- sigma^2 / (sigma^2 + tau^2)
+se <- sqrt( 1/ (1/sigma^2 + 1/tau^2))
+
+# Construct the 95% credible interval. Save the lower and then the upper confidence interval to a variable called `ci`.
+postmean <- B*mu + (1-B)*Y
+ci <- c(postmean - qnorm(0.975)*se, postmean + qnorm(0.975)*se)
+ci
+
+```
+
+
+Question 11
+
+According to this analysis, what was the probability that Trump wins Florida?
+
+```{r}
+# Assign the expected value of the posterior distribution to the variable `exp_value`
+exp_value <- B*mu + (1-B)*Y 
+
+# Assign the standard error of the posterior distribution to the variable `se`
+se <- sqrt( 1/ (1/sigma^2 + 1/tau^2))
+
+# Using the `pnorm` function, calculate the probability that the actual spread was less than 0 (in Trump's favor). Print this value to the console.
+pnorm(0,exp_value,se)
+
+```
+
+
+Question 12
+
+We had set the prior variance  to 0.01, reflecting that these races are often close.
+
+Change the prior variance to include values ranging from 0.005 to 0.05 and observe how the probability of Trump winning Florida changes by making a plot.
+
+
+```{r}
+# Define the variables from previous exercises
+mu <- 0
+sigma <- results$se
+Y <- results$avg
+
+# Define a variable `taus` as different values of tau
+taus <- seq(0.005, 0.05, len = 100)
+
+# Create a function called `p_calc` that generates `B` and calculates the probability of the spread being less than 0
+p_calc <- function(tau) {
+    B <- sigma^2 / (sigma^2 + tau^2)
+    exp_value <- B*mu + (1-B)*Y
+    se <- sqrt( 1/ (1/sigma^2 + 1/tau^2))
+    pnorm(0,exp_value,se)
+}
+
+# Create a vector called `ps` by applying the function `p_calc` across values in `taus`
+ps <- sapply(taus,p_calc)
+
+# Plot `taus` on the x-axis and `ps` on the y-axis
+plot(taus,ps)
+
+
+```
+
+
+## Section 6: Election Forecasting
+
+
+In Section 6, you will learn about election forecasting, building on what you've learned in the previous sections about statistical modeling and Bayesian statistics.
+
+After completing Section 6, you will be able to:
+
+* Understand how pollsters use hierarchical models to forecast the results of elections.
+* Incorporate multiple sources of variability into a mathematical model to make predictions.
+* Construct confidence intervals that better model deviations such as those seen in election data using the t-distribution.
+
+### Review of Previous Section
+
+```{r}
+library(tidyverse)
+library(dslabs)
+polls <- polls_us_election_2016 %>%
+    filter(state == "U.S." & enddate >= "2016-10-31" &
+                 (grade %in% c("A+", "A", "A-", "B+") | is.na(grade))) %>%
+    mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100)
+
+one_poll_per_pollster <- polls %>% group_by(pollster) %>%
+    filter(enddate == max(enddate)) %>%
+    ungroup()
+
+results <- one_poll_per_pollster %>%
+    summarize(avg = mean(spread), se = sd(spread)/sqrt(length(spread))) %>%
+    mutate(start = avg - 1.96*se, end = avg + 1.96*se)
+
+mu <- 0
+tau <- 0.035
+sigma <- results$se
+Y <- results$avg
+B <- sigma^2 / (sigma^2 + tau^2)
+posterior_mean <- B*mu + (1-B)*Y
+posterior_se <- sqrt(1 / (1/sigma^2 + 1/tau^2))
+
+posterior_mean
+posterior_se
+
+# 95% credible interval
+posterior_mean + c(-1.96, 1.96)*posterior_se
+
+# probability of d > 0
+1 - pnorm(0, posterior_mean, posterior_se)
+
+```
+
+### Predicting Electoral College
+
+```{r}
+library(tidyverse)
+library(dslabs)
+data("polls_us_election_2016")
+head(results_us_election_2016)
+
+results_us_election_2016 %>% arrange(desc(electoral_votes)) %>% top_n(5, electoral_votes)
+
+results <- polls_us_election_2016 %>%
+    filter(state != "U.S." &
+            !grepl("CD", "state") &
+            enddate >= "2016-10-31" &
+            (grade %in% c("A+", "A", "A-", "B+") | is.na(grade))) %>%
+    mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100) %>%
+    group_by(state) %>%
+    summarize(avg = mean(spread), sd = sd(spread), n = n()) %>%
+    mutate(state = as.character(state))
+
+# 10 closest races = battleground states
+results %>% arrange(abs(avg))
+
+# joining electoral college votes and results
+results <- left_join(results, results_us_election_2016, by="state")
+
+# states with no polls: note Rhode Island and District of Columbia = Democrat
+results_us_election_2016 %>% filter(!state %in% results$state)
+
+# assigns sd to states with just one poll as median of other sd values
+results <- results %>%
+    mutate(sd = ifelse(is.na(sd), median(results$sd, na.rm = TRUE), sd))
+
+### No General Bias
+
+mu <- 0
+tau <- 0.02
+clinton_EV <- replicate(1000, {
+    results %>% mutate(sigma = sd/sqrt(n),
+                       B = sigma^2/ (sigma^2 + tau^2),
+                       posterior_mean = B*mu + (1-B)*avg,
+                       posterior_se = sqrt( 1 / (1/sigma^2 + 1/tau^2)),
+                       simulated_result = rnorm(length(posterior_mean), posterior_mean, posterior_se),
+                       clinton = ifelse(simulated_result > 0, electoral_votes, 0)) %>%    # award votes if Clinton wins state
+        summarize(clinton = sum(clinton)) %>%    # total votes for Clinton
+        .$clinton + 7    # 7 votes for Rhode Island and DC
+})
+mean(clinton_EV > 269)    # over 269 votes wins election
+
+# histogram of outcomes
+data.frame(clintonEV) %>%
+    ggplot(aes(clintonEV)) +
+    geom_histogram(binwidth = 1) +
+    geom_vline(xintercept = 269)
+
+
+### Including General Bias
+
+mu <- 0
+tau <- 0.02
+bias_sd <- 0.03
+clinton_EV_2 <- replicate(1000, {
+    results %>% mutate(sigma = sqrt(sd^2/(n) + bias_sd^2),    # added bias_sd term
+                        B = sigma^2/ (sigma^2 + tau^2),
+                        posterior_mean = B*mu + (1-B)*avg,
+                        posterior_se = sqrt( 1 / (1/sigma^2 + 1/tau^2)),
+                        simulated_result = rnorm(length(posterior_mean), posterior_mean, posterior_se),
+                        clinton = ifelse(simulated_result > 0, electoral_votes, 0)) %>%    # award votes if Clinton wins state
+        summarize(clinton = sum(clinton)) %>%    # total votes for Clinton
+        .$clinton + 7    # 7 votes for Rhode Island and DC
+})
+mean(clinton_EV_2 > 269)    # over 269 votes wins election
+
+```
+
+
+### Forecasting
+
+* In poll results, p is not fixed over time. Variability within a single pollster comes from time variation.
+* In order to forecast, our model must include a bias term bt to model the time effect.
+* Pollsters also try to estimate f(t), the trend of p given time t using a model like:
+
+ Yi,j,t=d+b+hj+bt+f(t)+ϵi,j,t 
+ 
+* Once we decide on a model, we can use historical data and current data to estimate the necessary parameters to make predictions.
+
+
+```{r}
+# select all national polls by one pollster
+one_pollster <- polls_us_election_2016 %>%
+    filter(pollster == "Ipsos" & state == "U.S.") %>%
+    mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100)
+
+# the observed standard error is higher than theory predicts
+se <- one_pollster %>%
+    summarize(empirical = sd(spread),
+            theoretical = 2*sqrt(mean(spread)*(1-mean(spread))/min(samplesize)))
+se
+
+# the distribution of the data is not normal
+one_pollster %>% ggplot(aes(spread)) +
+    geom_histogram(binwidth = 0.01, color = "black")
+
+polls_us_election_2016 %>%
+    filter(state == "U.S." & enddate >= "2016-07-01") %>%
+    group_by(pollster) %>%
+    filter(n() >= 10) %>%
+    ungroup() %>%
+    mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100) %>%
+    ggplot(aes(enddate, spread)) +
+    geom_smooth(method = "loess", span = 0.1) +
+    geom_point(aes(color = pollster), show.legend = FALSE, alpha = 0.6)
+
+polls_us_election_2016 %>%
+    filter(state == "U.S." & enddate >= "2016-07-01") %>%
+    select(enddate, pollster, rawpoll_clinton, rawpoll_trump) %>%
+    rename(Clinton = rawpoll_clinton, Trump = rawpoll_trump) %>%
+    gather(candidate, percentage, -enddate, -pollster) %>%
+    mutate(candidate = factor(candidate, levels = c("Trump", "Clinton"))) %>%
+    group_by(pollster) %>%
+    filter(n() >= 10) %>%
+    ungroup() %>%
+    ggplot(aes(enddate, percentage, color = candidate)) +
+    geom_point(show.legend = FALSE, alpha = 0.4) +
+    geom_smooth(method = "loess", span = 0.15) +
+    scale_y_continuous(limits = c(30, 50))
+
+```
+
+### Section 6 Assessment 1
+
+Question 1
+
+For each poll in the polling data set, use the CLT to create a 95% confidence interval for the spread. Create a new table called cis that contains columns for the lower and upper limits of the confidence intervals.
+
+```{r}
+
+# Load the libraries and data
+library(dplyr)
+library(dslabs)
+data("polls_us_election_2016")
+
+# Create a table called `polls` that filters by  state, date, and reports the spread
+polls <- polls_us_election_2016 %>% 
+  filter(state != "U.S." & enddate >= "2016-10-31") %>% 
+  mutate(spread = rawpoll_clinton/100 - rawpoll_trump/100)
+
+# Create an object called `cis` that has the columns indicated in the instructions
+cis <- polls %>% mutate(X_hat = (spread+1)/2, se = 2*sqrt(X_hat*(1-X_hat)/samplesize), 
+                 lower = spread - qnorm(0.975)*se, upper = spread + qnorm(0.975)*se) %>%
+  select(state, startdate, enddate, pollster, grade, spread, lower, upper)
+cis
+
+```
+
+Question 2
+
+You can add the final result to the cis table you just created using the left_join function as shown in the sample code.
+
+Now determine how often the 95% confidence interval includes the actual result.
+
+```{r}
+# Add the actual results to the `cis` data set
+add <- results_us_election_2016 %>% mutate(actual_spread = clinton/100 - trump/100) %>% select(state, actual_spread)
+ci_data <- cis %>% mutate(state = as.character(state)) %>% left_join(add, by = "state")
+
+# Create an object called `p_hits` that summarizes the proportion of confidence intervals that contain the actual value. Print this object to the console.
+p_hits <- ci_data %>% mutate(hit = actual_spread >= lower & actual_spread <= upper) %>% summarize(p_hit = mean(hit))
+p_hits
+
+```
+
+
+Question 3
+
+Now find the proportion of hits for each pollster. Show only pollsters with at least 5 polls and order them from best to worst. Show the number of polls conducted by each pollster and the FiveThirtyEight grade of each pollster.
+
+```{r}
+# The `cis` data have already been loaded for you
+add <- results_us_election_2016 %>% mutate(actual_spread = clinton/100 - trump/100) %>% select(state, actual_spread)
+ci_data <- cis %>% mutate(state = as.character(state)) %>% left_join(add, by = "state")
+
+# Create an object called `p_hits` that summarizes the proportion of hits for each pollster that has at least 5 polls.
+p_hits <- ci_data %>%
+    mutate(hit = actual_spread >= lower & actual_spread <= upper) %>%
+    group_by(pollster) %>%
+    filter(n() > 4) %>%
+     summarize(proportion_hits = mean(hit),n = n(), grade = first(grade)) %>% arrange(desc(proportion_hits))
+p_hits
+```
+
+
+Question 4
+
+Repeat the previous exercise, but instead of pollster, stratify by state. Here we can't show grades.
+
+```{r}
+# The `cis` data have already been loaded for you
+add <- results_us_election_2016 %>% mutate(actual_spread = clinton/100 - trump/100) %>% select(state, actual_spread)
+ci_data <- cis %>% mutate(state = as.character(state)) %>% left_join(add, by = "state")
+
+# Create an object called `p_hits` that summarizes the proportion of hits for each state that has more than 5 polls.
+p_hits <- ci_data %>%
+    mutate(hit = actual_spread >= lower & actual_spread <= upper) %>%
+    group_by(state) %>%
+    filter(n() > 4) %>%
+     summarize(proportion_hits = mean(hit),n = n()) %>% arrange(desc(proportion_hits))
+p_hits
+
+```
+
+
+Question 
+
+Make a barplot based on the result from the previous exercise.
+
+
+```{r}
+# The `p_hits` data have already been loaded for you. Use the `head` function to examine it.
+head(p_hits)
+
+# Make a barplot of the proportion of hits for each state
+p_hits %>% ggplot(aes(state,proportion_hits)) + geom_bar(stat = "identity") + coord_flip()
+
+```
+
+
+Question 6
+
+Even if a forecaster's confidence interval is incorrect, the overall predictions will do better if they correctly called the right winner.
+
+Add two columns to the cis table by computing, for each poll, the difference between the predicted spread and the actual spread, and define a column hit that is true if the signs are the same.
+
+```{r}
+# The `cis` data have already been loaded. Examine it using the `head` function.
+head(cis)
+
+# Create an object called `errors` that calculates the difference between the predicted and actual spread and indicates if the correct winner was predicted
+errors <- cis %>% mutate(hit = sign(spread) == sign(actual_spread), error = spread - actual_spread)
+
+# Examine the last 6 rows of `errors`
+tail(errors)
+
+```
+
+
+Question 7
+
+Create an object called p_hits that contains the proportion of instances when the sign of the actual spread matches the predicted spread for states with 5 or more polls.
+
+Make a barplot based on the result from the previous exercise that shows the proportion of times the sign of the spread matched the actual result for the data in p_hits.
+
+```{r}
+# Create an object called `errors` that calculates the difference between the predicted and actual spread and indicates if the correct winner was predicted
+errors <- ci_data %>% mutate(error = spread - actual_spread, hit = sign(spread) == sign(actual_spread))
+
+# Create an object called `p_hits` that summarizes the proportion of hits for each state that has 5 or more polls
+
+p_hits <- errors %>% 
+    group_by(state) %>%
+    filter(n()>4) %>%
+    summarize(proportion_hits = mean(hit), n = n())
+
+
+# Make a barplot of the proportion of hits for each state
+
+p_hits %>% ggplot(aes(state, proportion_hits)) + geom_bar(stat = "identity") + coord_flip()
+
+```
+
+Question 8
+
+In the previous graph, we see that most states' polls predicted the correct winner 100% of the time. Only a few states polls' were incorrect more than 25% of the time. Wisconsin got every single poll wrong. In Pennsylvania and Michigan, more than 90% of the polls had the signs wrong.
+
+Make a histogram of the errors. What is the median of these errors?
+
+```{r}
+# The `errors` data have already been loaded. Examine them using the `head` function.
+head(errors)
+
+# Generate a histogram of the error
+hist(errors$error)
+
+# Calculate the median of the errors. Print this value to the console.
+median(errors$error)
+```
+
+
+Question 9
+
+We see that, at the state level, the median error was slightly in favor of Clinton. The distribution is not centered at 0, but at 0.037. This value represents the general bias we described in an earlier section.
+
+Create a boxplot to examine if the bias was general to all states or if it affected some states differently. Filter the data to include only pollsters with grades B+ or higher.
+
+```{r}
+# The `errors` data have already been loaded. Examine them using the `head` function.
+head(errors)
+
+# Create a boxplot showing the errors by state for polls with grades B+ or higher
+errors %>% 
+    filter(grade %in% c("B+", "A", "A-", "A+")) %>%
+    ggplot(aes(x = reorder(state,error), error)) + geom_boxplot() + geom_point()
+
+```
+
+
+Question 10
+
+Some of these states only have a few polls. Repeat the previous exercise to plot the errors for each state, but only include states with five good polls or more.
+
+```{r}
+errors %>% 
+    filter(grade %in% c("B+", "A", "A-", "A+")) %>%
+    group_by(state) %>%
+    filter(n() > 4) %>%
+    ungroup() %>%
+    ggplot(aes(x = reorder(state,error), error)) + geom_boxplot() + geom_point()
+
+```
+
+
+
+
+
+
+
+
+Question 1
+
+```{r}
+
+
+```
+
+
+
+
+

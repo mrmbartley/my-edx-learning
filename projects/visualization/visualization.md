@@ -570,3 +570,95 @@ p + scale_y_continuous(trans = "log2") +
 ```
 
 ![](visualization_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
+### Closer Examination of Differences in Distributions
+
+Let’s see if we can focus on western regions vs. the remaining ones, and
+find a way to make the change between 1970 and 2010 more clear. We can
+use mutate to create a grouping of regions base on West vs. the rest
+(developing). Facet grid allows us to present the histogram information
+on these two very clearly.
+
+We notice from previous plots though that some regions do not have data
+for both time points, so we should create a new list of countries to
+filter on based on having sufficient data available.
+
+Finally, we can move back to viewing box plots
+
+``` r
+# add dollars per day variable and define past year
+gapminder <- gapminder %>%
+    mutate(dollars_per_day = gdp/population/365)
+past_year <- 1970
+
+# define Western countries
+west <- c("Western Europe", "Northern Europe", "Southern Europe", "Northern America", "Australia and New Zealand")
+
+# facet by West vs devloping
+gapminder %>%
+    filter(year == past_year & !is.na(gdp)) %>%
+    mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black") +
+    scale_x_continuous(trans = "log2") +
+    facet_grid(. ~ group)
+```
+
+![](visualization_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+
+``` r
+# facet by West/developing and year
+present_year <- 2010
+gapminder %>%
+    filter(year %in% c(past_year, present_year) & !is.na(gdp)) %>%
+    mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black") +
+    scale_x_continuous(trans = "log2") +
+    facet_grid(year ~ group)
+```
+
+![](visualization_files/figure-gfm/unnamed-chunk-14-2.png)<!-- -->
+
+``` r
+# define countries that have data available in both years
+country_list_1 <- gapminder %>%
+    filter(year == past_year & !is.na(dollars_per_day)) %>% .$country
+
+country_list_2 <- gapminder %>%
+    filter(year == present_year & !is.na(dollars_per_day)) %>% .$country
+
+country_list <- intersect(country_list_1, country_list_2)
+
+# make histogram including only countries with data available in both years
+gapminder %>%
+    filter(year %in% c(past_year, present_year) & country %in% country_list) %>%    # keep only selected countries
+    mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black") +
+    scale_x_continuous(trans = "log2") +
+    facet_grid(year ~ group)
+```
+
+![](visualization_files/figure-gfm/unnamed-chunk-14-3.png)<!-- -->
+
+``` r
+p <- gapminder %>%
+    filter(year %in% c(past_year, present_year) & country %in% country_list) %>%
+    mutate(region = reorder(region, dollars_per_day, FUN = median)) %>%
+    ggplot() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    xlab("") + scale_y_continuous(trans = "log2")
+    
+ p + geom_boxplot(aes(region, dollars_per_day, fill = continent)) +
+     facet_grid(year ~ .)
+```
+
+![](visualization_files/figure-gfm/unnamed-chunk-14-4.png)<!-- -->
+
+``` r
+ # arrange matching boxplots next to each other, colored by year
+ p + geom_boxplot(aes(region, dollars_per_day, fill = factor(year)))
+```
+
+![](visualization_files/figure-gfm/unnamed-chunk-14-5.png)<!-- -->

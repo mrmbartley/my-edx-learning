@@ -398,3 +398,273 @@ p + scale_y_continuous(trans = "log2") +
 ```
 
 
+### Closer Examination of Differences in Distributions
+
+Let's see if we can focus on western regions vs. the remaining ones, and find a way to make the change between 1970 and 2010 more clear. We can use mutate to create a grouping of regions base on West vs. the rest (developing). Facet grid allows us to present the histogram information on these two very clearly.
+
+We notice from previous plots though that some regions do not have data for both time points, so we should create a new list of countries to filter on based on having sufficient data available.
+
+Finally, we can move back to viewing box plots
+
+```{r}
+
+# add dollars per day variable and define past year
+gapminder <- gapminder %>%
+    mutate(dollars_per_day = gdp/population/365)
+past_year <- 1970
+
+# define Western countries
+west <- c("Western Europe", "Northern Europe", "Southern Europe", "Northern America", "Australia and New Zealand")
+
+# facet by West vs devloping
+gapminder %>%
+    filter(year == past_year & !is.na(gdp)) %>%
+    mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black") +
+    scale_x_continuous(trans = "log2") +
+    facet_grid(. ~ group)
+
+# facet by West/developing and year
+present_year <- 2010
+gapminder %>%
+    filter(year %in% c(past_year, present_year) & !is.na(gdp)) %>%
+    mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black") +
+    scale_x_continuous(trans = "log2") +
+    facet_grid(year ~ group)
+
+# define countries that have data available in both years
+country_list_1 <- gapminder %>%
+    filter(year == past_year & !is.na(dollars_per_day)) %>% .$country
+
+country_list_2 <- gapminder %>%
+    filter(year == present_year & !is.na(dollars_per_day)) %>% .$country
+
+country_list <- intersect(country_list_1, country_list_2)
+
+# make histogram including only countries with data available in both years
+gapminder %>%
+    filter(year %in% c(past_year, present_year) & country %in% country_list) %>%    # keep only selected countries
+    mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+    ggplot(aes(dollars_per_day)) +
+    geom_histogram(binwidth = 1, color = "black") +
+    scale_x_continuous(trans = "log2") +
+    facet_grid(year ~ group)
+
+p <- gapminder %>%
+    filter(year %in% c(past_year, present_year) & country %in% country_list) %>%
+    mutate(region = reorder(region, dollars_per_day, FUN = median)) %>%
+    ggplot() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    xlab("") + scale_y_continuous(trans = "log2")
+    
+ p + geom_boxplot(aes(region, dollars_per_day, fill = continent)) +
+     facet_grid(year ~ .)
+ 
+ # arrange matching boxplots next to each other, colored by year
+ p + geom_boxplot(aes(region, dollars_per_day, fill = factor(year)))
+```
+
+### Using Density Plots to Convey the Message
+
+Let's look at the income distribution across both years using a smooth density plot, and re-discover some of our prior learnings.
+
+```{r smooth density}
+
+gapminder <- gapminder %>% mutate(dollars_per_day = gdp/population/365)
+gapminder <- gapminder %>% 
+  mutate(group = case_when(
+    region %in% c("Western Europe", "Northern Europe","Southern Europe", 
+                    "Northern America", 
+                  "Australia and New Zealand") ~ "West",
+    region %in% c("Eastern Asia", "South-Eastern Asia") ~ "East Asia",
+    region %in% c("Caribbean", "Central America", 
+                  "South America") ~ "Latin America",
+    continent == "Africa" & 
+      region != "Northern Africa" ~ "Sub-Saharan",
+    TRUE ~ "Others"))
+
+years <- c(1970, 2010)
+
+west <- c("Western Europe", "Northern Europe", "Southern Europe", "Northern America", "Australia and New Zealand")
+
+# define countries that have data available in both years
+country_list_1 <- gapminder %>%
+    filter(year == past_year & !is.na(dollars_per_day)) %>% .$country
+
+country_list_2 <- gapminder %>%
+    filter(year == present_year & !is.na(dollars_per_day)) %>% .$country
+
+country_list <- intersect(country_list_1, country_list_2)
+
+
+p <- gapminder %>% 
+  filter(year %in% years & country %in% country_list) %>%
+  mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+  ggplot(aes(dollars_per_day)) + 
+  scale_x_continuous(trans = "log2")
+
+p + geom_density(fill="grey") + 
+  facet_grid(year~.)
+
+
+p <- gapminder %>% 
+  filter(year %in% years & country %in% country_list) %>%
+  mutate(group = ifelse(region %in% west, "West", "Developing")) %>%
+  ggplot(aes(x = dollars_per_day, y = ..count.., fill = group)) + 
+  scale_x_continuous(trans = "log2", limit=c(0.125,300))
+
+p + geom_density(alpha = 0.2) + 
+  facet_grid(year~.)
+
+p + geom_density(alpha = 0.2, bw = 0.75) + 
+  facet_grid(year ~ .)
+  
+gapminder %>% 
+  filter(year %in% years & country %in% country_list) %>%
+  group_by(year) %>%
+  mutate(weight = population/sum(population)*2) %>%
+  ungroup() %>%
+  ggplot(aes(dollars_per_day, fill = group, weight=weight)) +
+  scale_x_continuous(trans = "log2") +
+  geom_density(alpha = 0.2, bw = 0.75, position="stack") +
+  facet_grid(. ~ year)
+
+
+
+
+```
+
+
+
+### Distribution of Health Outcomes by Geographical Region
+
+We want to examine the relationship between child survival rates and average income. We start by defining a few more regions to focus our analysis. Then we compute average income and average survival rate for each region, summarize, and plot.
+
+```{r health regions}
+
+present_year <- 2010
+
+gapminder <- gapminder %>%
+  mutate(group = case_when(
+    .$region %in% west ~ "The West",
+    .$region %in% "Northern Africa" ~ "Northern Africa",
+    .$region %in% c("Eastern Asia", "South-Eastern Asia") ~ "East Asia",
+    .$region == "Southern Asia" ~ "Southern Asia",
+    .$region %in% c("Central America", "South America", "Caribbean") ~ "Latin America",
+    .$continent == "Africa" & .$region != "Northern Africa" ~ "Sub-Saharan Africa",
+    .$region %in% c("Melanesia", "Micronesia", "Polynesia") ~ "Pacific Islands"))
+
+
+surv_income <- gapminder %>%
+  filter(year %in% present_year & !is.na(gdp) & !is.na(infant_mortality) & !is.na(group)) %>%
+  group_by(group) %>%
+  summarize(income = sum(gdp)/sum(population)/365,
+            infant_survival_rate = 1 - sum(infant_mortality/1000*population)/sum(population))
+
+surv_income %>% arrange(income)
+
+
+surv_income %>% ggplot(aes(income, infant_survival_rate, label=group, color=group)) +
+  scale_x_continuous(trans="log2", limit=c(0.25, 150)) +
+  scale_y_continuous(trans="logit", limit=c(0.875, 0.9981),
+                     breaks=c(.85, .90, .95, 0.99, 0.995, 0.998)) +
+  geom_label(size = 3, show.legend =  FALSE)
+
+
+
+
+
+gapminder %>%  
+  filter( year %in% present_year & !is.na(gdp) & !is.na(infant_mortality) & !is.na(group) ) %>%
+  mutate( income = gdp/population/365, infant_survival_rate = 1 - infant_mortality/1000 ) %>%
+  ggplot( aes(income, infant_survival_rate, color = group) ) +
+  scale_x_continuous( trans="log2", limit = c(0.25, 150) ) +
+  scale_y_continuous( trans="logit", limit = c(0.875, 0.9981),
+                     breaks=c(.85, .90, .95, 0.99, 0.995, 0.998) ) +
+  geom_point( size = 4, alpha = 0.5 )
+
+
+```
+
+
+
+## Titanic Survival Exercises
+
+```{r}
+
+options(digits = 3)    # report 3 significant digits
+library(tidyverse)
+library(titanic)
+
+titanic <- titanic_train %>%
+    select(Survived, Pclass, Sex, Age, SibSp, Parch, Fare) %>%
+    mutate(Survived = factor(Survived),
+           Pclass = factor(Pclass),
+           Sex = factor(Sex))
+
+?titanic_train
+head(titanic_train)
+
+
+titanic_train %>% ggplot(aes(Age,fill=Sex)) + geom_density(alpha=0.2, bw=0.75, position="stack")
+
+titanic_train %>% count(Sex)
+titanic_train %>% filter(Age == 40) %>% count(Sex)
+titanic_train %>% mutate(group = case_when(.$Age > 17 & .$Age <36 ~ "18-35",
+                                           TRUE ~ "Not 18-35")) %>%
+  count(Sex, group) %>% group_by(Sex) %>% mutate(freq = n / sum(n))
+
+titanic_train %>% mutate(group = case_when(.$Age < 17 ~ "Under 17",
+                                           TRUE ~ "Not under 17")) %>%
+  count(Sex, group) %>% group_by(Sex) %>% mutate(freq = n / sum(n))
+titanic_train %>% group_by(Sex) %>% count(Age)
+
+params <- titanic %>%
+    filter(!is.na(Age)) %>%
+    summarize(mean = mean(Age), sd = sd(Age))
+
+titanic_train %>% filter(!is.na(Age)) %>% ggplot(aes(sample=Age)) + geom_qq(dparams=params) + geom_abline()
+
+titanic_train %>% ggplot(aes(Survived, fill=Sex)) + geom_bar()
+
+titanic_train %>% 
+  filter(!is.na(Age) & !is.na(Survived)) %>% 
+  mutate(group=case_when(.$Survived == 1 ~ 'Yes',
+                         .$Survived == 0 ~ 'No')) %>% 
+  ggplot(aes(Age, fill=group)) + geom_density(alpha=0.2, bw=0.75, position="stack")
+
+titanic_train %>% 
+  filter(Fare > 0) %>% 
+  mutate(group=case_when(.$Survived == 1 ~ 'Yes',
+                       .$Survived == 0 ~ 'No')) %>% 
+  ggplot(aes(Fare, group, fill=group)) +
+  scale_x_continuous(trans="log2") +
+  geom_boxplot() +
+  geom_point(show.legend = FALSE, alpha=0.2)
+  
+
+titanic_train %>% 
+  ggplot(aes(Pclass, fill=factor(Survived))) + geom_bar()
+
+titanic_train %>% 
+  ggplot(aes(Pclass, fill=factor(Survived))) + geom_bar(position=position_fill()) 
+
+titanic_train %>% 
+  ggplot(aes(Survived, fill=factor(Pclass))) + geom_bar(position=position_fill()) 
+
+
+titanic_train %>% filter(!is.na(Age)) %>%
+  ggplot(aes(Age,  y = ..count.., fill=factor(Survived))) +
+  geom_density(alpha=0.2) +
+  facet_grid(Sex ~ Pclass)
+
+```
+
+
+
+
+
+
