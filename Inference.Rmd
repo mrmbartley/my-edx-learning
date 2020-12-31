@@ -1553,18 +1553,498 @@ errors %>%
 
 
 
-
+### t-Distribution
 
 
 
 Question 1
 
+We know that, with a normal distribution, only 5% of values are more than 2 standard deviations away from the mean.
+
+Calculate the probability of seeing t-distributed random variables being more than 2 in absolute value when the degrees of freedom are 3.
+
 ```{r}
+2*(1-pt(2,df=3))
+
+```
+
+Question 2
+
+Now use sapply to compute the same probability for degrees of freedom from 3 to 50.
+
+Make a plot and notice when this probability converges to the normal distribution's 5%.
+
+```{r}
+# Generate a vector 'df' that contains a sequence of numbers from 3 to 50
+df <- 3:50
+df
+
+# Make a function called 'pt_func' that calculates the probability that a value is more than |2| for any degrees of freedom 
+pt_func <- function(df) {
+  2*(1-pt(2,df=df))
+}
+
+
+# Generate a vector 'probs' that uses the `pt_func` function to calculate the probabilities
+probs <- sapply(df,pt_func)
+
+
+# Plot 'df' on the x-axis and 'probs' on the y-axis
+plot(df,probs)
+
+```
+
+Question 3
+
+In a previous section, we repeatedly took random samples of 50 heights from a distribution of heights. We noticed that about 95% of the samples had confidence intervals spanning the true population mean.
+
+Re-do this Monte Carlo simulation, but now instead of N=50, use N=15. Notice what happens to the proportion of hits.
+
+```{r}
+# Load the neccessary libraries and data
+library(dslabs)
+library(dplyr)
+data(heights)
+
+# Use the sample code to generate 'x', a vector of male heights
+x <- heights %>% filter(sex == "Male") %>%
+  .$height
+
+# Create variables for the mean height 'mu', the sample size 'N', and the number of times the simulation should run 'B'
+mu <- mean(x)
+N <- 15
+B <- 10000
+
+# Use the `set.seed` function to make sure your answer matches the expected result after random sampling
+set.seed(1)
+
+# Generate a logical vector 'res' that contains the results of the simulations
+res <- replicate(B,{
+  XN <- sample(x, N, replace=TRUE)
+  muxn <- mean(XN)
+  sdxn <- sd(XN)/sqrt(N)
+  interval <- c(muxn-sdxn*qnorm(0.975),muxn+sdxn*qnorm(0.975))
+  between(mu,interval[1],interval[2])
+  })
+
+# Calculate the proportion of times the simulation produced values within the 95% confidence interval. Print this value to the console.
+mean(res)
+
+```
+
+Question 4
+
+```{r}
+# The vector of filtered heights 'x' has already been loaded for you. Calculate the mean.
+mu <- mean(x)
+
+# Use the same sampling parameters as in the previous exercise.
+set.seed(1)
+N <- 15
+B <- 10000
+
+# Generate a logical vector 'res' that contains the results of the simulations using the t-distribution
+res <- replicate(B,{
+  XN <- sample(x, N, replace=TRUE)
+  muxn <- mean(XN)
+  sdxn <- sd(XN)/sqrt(N)
+  interval <- c(muxn-sdxn*qt(0.975, df=N-1),muxn+sdxn*qt(0.975, df=N-1))
+  between(mu,interval[1],interval[2])
+  })
+
+# Calculate the proportion of times the simulation produced values within the 95% confidence interval. Print this value to the console.
+mean(res)
+
+```
+
+## Section 7: Association Tests
+
+In Section 7, you will learn how to use association and chi-squared tests to perform inference for binary, categorical, and ordinal data through an example looking at research funding rates.
+
+After completing Section 7, you will be able to:
+
+Use association and chi-squared tests to perform inference on binary, categorical, and ordinal data.
+Calculate an odds ratio to get an idea of the magnitude of an observed effect.
+
+### Fisher's Exact Test
+
+```{r}
+# load and inspect research funding rates object
+library(tidyverse)
+library(dslabs)
+data(research_funding_rates)
+research_funding_rates
+
+# compute totals that were successful or not successful
+totals <- research_funding_rates %>%
+    select(-discipline) %>%
+    summarise_all(sum) %>%
+    summarise(yes_men = awards_men,
+                         no_men = applications_men - awards_men,
+                         yes_women = awards_women,
+                         no_women = applications_women - awards_women)
+
+# compare percentage of men/women with awards
+totals %>% summarize(percent_men = yes_men/(yes_men + no_men),
+                                          percent_women = yes_women/(yes_women + no_women))
+
+```
+```{r}
+tab <- matrix(c(3,1,1,3), 2, 2)
+rownames(tab) <- c("Poured Before", "Poured After")
+colnames(tab) <- c("Guessed Before", "Guessed After")
+tab
+
+# p-value calculation with Fisher's Exact Test
+fisher.test(tab, alternative = "greater")
+```
+### Pearson's Chi Square Test
+
+
+```{r}
+# compute overall funding rate
+funding_rate <- totals %>%
+    summarize(percent_total = (yes_men + yes_women) / (yes_men + no_men + yes_women + no_women)) %>%
+    .$percent_total
+funding_rate
+
+# construct two-by-two table for observed data
+two_by_two <- tibble(awarded = c("no", "yes"),
+                    men = c(totals$no_men, totals$yes_men),
+                     women = c(totals$no_women, totals$yes_women))
+two_by_two
+
+# compute null hypothesis two-by-two table
+tibble(awarded = c("no", "yes"),
+           men = (totals$no_men + totals$yes_men) * c(1-funding_rate, funding_rate),
+           women = (totals$no_women + totals$yes_women) * c(1-funding_rate, funding_rate))
+
+# chi-squared test
+chisq_test <- two_by_two %>%
+    select(-awarded) %>%
+    chisq.test()
+chisq_test$p.value
+```
+```{r}
+# odds of getting funding for men
+odds_men <- (two_by_two$men[2] / sum(two_by_two$men)) /
+        (two_by_two$men[1] / sum(two_by_two$men))
+
+# odds of getting funding for women
+odds_women <- (two_by_two$women[2] / sum(two_by_two$women)) /
+        (two_by_two$women[1] / sum(two_by_two$women))
+
+# odds ratio - how many times larger odds are for men than women
+odds_men/odds_women
+```
+```{r}
+# multiplying all observations by 10 decreases p-value without changing odds ratio
+two_by_two %>%
+  select(-awarded) %>%
+  mutate(men = men*10, women = women*10) %>%
+  chisq.test()
+```
+### Section 7 Assessment
+
+Question 1
+
+In a previous exercise, we determined whether or not each poll predicted the correct winner for their state in the 2016 U.S. presidential election. Each poll was also assigned a grade by the poll aggregator. Now we're going to determine if polls rated A- made better predictions than polls rated C-.
+
+In this exercise, filter the errors data for just polls with grades A- and C-. Calculate the proportion of times each grade of poll predicted the correct winner.
+
+```{r}
+# The 'errors' data have already been loaded. Examine them using the `head` function.
+head(errors)
+
+# Generate an object called 'totals' that contains the numbers of good and bad predictions for polls rated A- and C-
+totals <- errors %>% 
+  filter(grade %in% c("A-","C-")) %>% 
+  group_by(hit,grade) %>% 
+  summarise(count=n()) %>% 
+  spread(grade,count) %>% 
+  ungroup()
+
+totals
+
+props <- totals %>% mutate(propC = `C-`/sum(`C-`), propA = `A-`/sum(`A-`))
+
+# Print the proportion of hits for grade A- polls to the console
+props %>% filter(hit=="TRUE") %>% pull(propA)
+
+# Print the proportion of hits for grade C- polls to the console
+props %>% filter(hit=="TRUE") %>% pull(propC)
+```
+
+Question 2
+
+We found that the A- polls predicted the correct winner about 80% of the time in their states and C- polls predicted the correct winner about 86% of the time.
+
+Use a chi-squared test to determine if these proportions are different.
+
+```{r}
+# The 'totals' data have already been loaded. Examine them using the `head` function.
+head(totals)
+
+# Perform a chi-squared test on the hit data. Save the results as an object called 'chisq_test'.
+chisq_test <- totals %>% select(-hit) %>% chisq.test
+chisq_test
+
+# Print the p-value of the chi-squared test to the console
+chisq_test$p.value
+```
+
+Question 3
+
+It doesn't look like the grade A- polls performed significantly differently than the grade C- polls in their states.
+
+Calculate the odds ratio to determine the magnitude of the difference in performance between these two grades of polls.
+
+```{r}
+# The 'totals' data have already been loaded. Examine them using the `head` function.
+head(totals)
+odds <- totals %>% filter(hit==TRUE) %>% select(-hit) / totals %>% filter(hit==FALSE) %>% select(-hit)
+
+# Generate a variable called `odds_C` that contains the odds of getting the prediction right for grade C- polls
+odds_C <- odds$'C-'
+odds_C
+
+# Generate a variable called `odds_A` that contains the odds of getting the prediction right for grade A- polls
+odds_A <- odds$'A-'
+odds_A
+
+# Calculate the odds ratio to determine how many times larger the odds ratio is for grade A- polls than grade C- polls
+odds_A / odds_C
+
+```
+
+## Final Assessment: Brexit
+
+In June 2016, the United Kingdom (UK) held a referendum to determine whether the country would "Remain" in the European Union (EU) or "Leave" the EU. This referendum is commonly known as Brexit. Although the media and others interpreted poll results as forecasting "Remain" ( p>0.5) , the actual proportion that voted "Remain" was only 48.1%  (p=0.481)  and the UK thus voted to leave the EU. Pollsters in the UK were criticized for overestimating support for "Remain". 
+
+In this project, you will analyze real Brexit polling data to develop polling models to forecast Brexit results. You will write your own code in R and enter the answers on the edX platform.
+
+
+```{r Setup}
+# suggested libraries and options
+library(tidyverse)
+options(digits = 3)
+
+# load brexit_polls object
+library(dslabs)
+data(brexit_polls)
+
+p <- 0.481    # official proportion voting "Remain"
+d <- 2*p-1    # official spread
+```
+
+Question 1: Expected value and standard error of a poll
+
+Consider a poll with a sample of  N=1500  voters.
+
+```{r}
+# What is the expected total number of voters in the sample choosing "Remain"?
+N <- 1500
+N*p
+
+# What is the standard error of the total number of voters in the sample choosing "Remain"?
+se <- sqrt(N*p*(1-p))
+se
+
+# What is the expected value of  X^ , the proportion of "Remain" voters?
+p
+
+# What is the standard error of  X^ , the proportion of "Remain" voters?
+se / sqrt(N)
+
+# What is the expected value of  d , the spread between the proportion of "Remain" voters and "Leave" voters?
+d <- 2*p-1
+d
+
+# What is the standard error of d, the spread between the proportion of "Remain" voters and "Leave" voters?
+2*sqrt(p*(1-p)/N)
 
 
 ```
 
+Question 2: Actual Brexit poll estimates
+
+Load and inspect the brexit_polls dataset from dslabs, which contains actual polling data for the 6 months before the Brexit vote. Raw proportions of voters preferring "Remain", "Leave", and "Undecided" are available (remain, leave, undecided) The spread is also available (spread), which is the difference in the raw proportion of voters choosing "Remain" and the raw proportion choosing "Leave".
+
+Calculate x_hat for each poll, the estimate of the proportion of voters choosing "Remain" on the referendum day ( p=0.481 ), given the observed spread and the relationship  d^=2X^−1 . Use mutate() to add a variable x_hat to the brexit_polls object by filling in the skeleton code below:
+
+```{r}
+head(brexit_polls)
+
+brexit_polls <- brexit_polls %>%
+  mutate(x_hat = (spread+1)/2)
+
+# What is the average of the observed spreads (spread)?
+brexit_polls %>% summarise(mean=mean(spread))
+
+# What is the standard deviation of the observed spreads?
+brexit_polls %>% summarise(sd=sd(spread))
+
+# What is the average of x_hat, the estimates of the parameter  p ?
+brexit_polls %>% summarise(mean=mean(x_hat))
+
+# What is the standard deviation of x_hat?
+brexit_polls %>% summarise(sd=sd(x_hat))
 
 
+
+
+
+```
+Question 3: Confidence interval of a Brexit poll
+
+Consider the first poll in brexit_polls, a YouGov poll run on the same day as the Brexit referendum:
+
+```{r}
+# Use qnorm() to compute the 95% confidence interval for  X^ .
+
+mu <- brexit_polls[1,]$x_hat
+sigma <- sqrt(mu*(1-mu)/brexit_polls[1,]$samplesize)
+
+# What is the lower bound of the 95% confidence interval?
+mu - qnorm(0.975)*sigma
+
+# What is the upper bound of the 95% confidence interval?
+mu + qnorm(0.975)*sigma
+
+#Does the 95% confidence interval predict a winner (does not cover  p=0.5 )? Does the 95% confidence interval cover the true value of  p  observed during the referendum?
+
+
+
+
+```
+Question 4: Confidence intervals for polls in June
+
+Create the data frame june_polls containing only Brexit polls ending in June 2016 (enddate of "2016-06-01" and later). We will calculate confidence intervals for all polls and determine how many cover the true value of  d .
+
+First, use mutate() to calculate a plug-in estimate se_x_hat for the standard error of the estimate  SE^[X]  for each poll given its sample size and value of  X^  (x_hat). Second, use mutate() to calculate an estimate for the standard error of the spread for each poll given the value of se_x_hat. Then, use mutate() to calculate upper and lower bounds for 95% confidence intervals of the spread. Last, add a column hit that indicates whether the confidence interval for each poll covers the correct spread  d=−0.038 .
+
+```{r}
+june_polls <- brexit_polls %>% filter(enddate >= "2016-06-01")
+
+
+june_polls <- june_polls %>% 
+  mutate(se_x_hat = sqrt(x_hat*(1-x_hat)/samplesize)) %>%
+  mutate(se_spread = 2*se_x_hat) %>%
+  mutate(lower = spread - qnorm(0.975)*se_spread,
+         upper = spread + qnorm(0.975)*se_spread) %>%
+  mutate(hit = lower < d & d < upper)
+  
+head(june_polls)
+
+# How many polls are in june_polls?
+june_polls %>% summarise(count=n())
+
+# What proportion of polls have a confidence interval that covers the value 0?
+june_polls %>% 
+  mutate(contain_zero = lower < 0 & upper > 0) %>%
+  summarise(prop_zero = sum(contain_zero)/n())
+
+# What proportion of polls predict "Remain" (confidence interval entirely above 0)?
+june_polls %>% summarise(prop_remain = sum(lower>0)/n())
+
+# What proportion of polls have a confidence interval covering the true value of  d ?
+june_polls %>% summarise(hits = sum(hit)/n())
+```
+
+Question 5: Hit rate by pollster
+
+Group and summarize the june_polls object by pollster to find the proportion of hits for each pollster and the number of polls per pollster. Use arrange() to sort by hit rate.
+
+```{r}
+june_polls %>% group_by(pollster) %>% summarise(polls = n(), hits = sum(hit)/n()) %>% arrange(hits)
+
+```
+Question 6: Boxplot of Brexit polls by poll type
+
+
+```{r}
+june_polls %>% group_by(poll_type) %>% ggplot(aes(spread,poll_type)) + geom_boxplot()
+
+```
+
+
+Question 7: Combined spread across poll type
+
+Calculate the confidence intervals of the spread combined across all polls in june_polls, grouping by poll type. Recall that to determine the standard error of the spread, you will need to double the standard error of the estimate.
+
+Use this code (which determines the total sample size per poll type, gives each spread estimate a weight based on the poll's sample size, and adds an estimate of p from the combined spread) to begin your analysis:
+
+```{r}
+combined_by_type <- june_polls %>%
+        group_by(poll_type) %>%
+        summarize(N = sum(samplesize),
+                  spread = sum(spread*samplesize)/N,
+                  p_hat = (spread + 1)/2)
+
+combined_by_type %>% mutate(spread_se = 2*sqrt(p_hat*(1-p_hat)/N),
+                            lower = spread - qnorm(0.975)*spread_se,
+                            upper = spread + qnorm(0.975)*spread_se)
+
+```
+
+Question 9: Chi-squared p-value
+
+```{r}
+brexit_hit <- brexit_polls %>%
+  mutate(p_hat = (spread + 1)/2,
+         se_spread = 2*sqrt(p_hat*(1-p_hat)/samplesize),
+         spread_lower = spread - qnorm(.975)*se_spread,
+         spread_upper = spread + qnorm(.975)*se_spread,
+         hit = spread_lower < -0.038 & spread_upper > -0.038) %>%
+  select(poll_type, hit)
+
+two_way <- brexit_hit %>% group_by(poll_type,hit) %>% summarise(n=n()) %>% ungroup() %>% spread(poll_type,n)
+two_way %>% select(-hit) %>% chisq.test()
+```
+
+Question 10: Odds ratio of online and telephone poll hit rate
+
+```{r}
+odds <- two_way %>% filter(hit==TRUE) %>% select(-hit) / two_way %>% filter(hit==FALSE) %>% select(-hit)
+
+odds_online <- odds$Online
+odds_online
+
+odds_telephone <- odds$Telephone
+odds_telephone
+
+odds_online/odds_telephone
+
+```
+
+Question 11: Plotting spread over time
+
+Use brexit_polls to make a plot of the spread (spread) over time (enddate) colored by poll type (poll_type). Use geom_smooth() with method = "loess" to plot smooth curves with a span of 0.4. Include the individual data points colored by poll type. Add a horizontal line indicating the final value of  d=−.038 .
+
+```{r}
+
+brexit_polls %>% group_by(poll_type) %>%
+    ggplot(aes(enddate, spread, color = poll_type)) +
+    geom_smooth(method = "loess", span = 0.4) +
+    geom_point(aes(color = poll_type), show.legend = FALSE, alpha = 0.6) +
+    geom_hline(yintercept=-0.038)
+
+
+```
+
+Question 12: Plotting raw percentages over time
+
+Use the following code to create the object brexit_long, which has a column vote containing the three possible votes on a Brexit poll ("remain", "leave", "undecided") and a column proportion containing the raw proportion choosing that vote option on the given poll:
+
+```{r}
+brexit_long <- brexit_polls %>%
+    gather(vote, proportion, "remain":"undecided") %>%
+    mutate(vote = factor(vote))
+
+brexit_long %>% ggplot(aes(enddate, proportion, color=vote)) +
+  geom_smooth(method = "loess", span = 0.3) +
+  geom_point(aes(color = vote), show.legend = FALSE, alpha = 0.6)
+
+```
 
 

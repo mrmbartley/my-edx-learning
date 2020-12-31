@@ -1,0 +1,113 @@
+---
+title: "Wrangling"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dslabs)
+library(tidyverse)
+library(readr)
+```
+
+## Section 1: Data Import
+
+Testing working directory and file locations.
+
+```{r}
+
+system.file("extdata", package="dslabs")
+path <- system.file("extdata", package="dslabs")
+list.files(path)
+
+filename <- "murders.csv"
+fullpath <- file.path(path,filename)
+file.copy(fullpath,getwd())
+file.exists(filename)
+
+```
+Let's take a look at the first few lines to confirm what kind of file we're dealing with.
+
+
+```{r}
+read_lines("murders.csv", n_max=3)
+dat <- read_csv(filename)
+view(dat)
+
+```
+Importing data files from the internet.
+
+```{r}
+url <- "https://raw.githubusercontent.com/rafalab/dslabs/master/inst/extdata/murders.csv"
+dat <- read_csv(url)
+download.file(url, "murders.csv")
+
+getwd()
+filename <- "murders.csv"
+path <- system.file("extdata", package = "dslabs")
+
+file.copy(file.path(path, "murders.csv"), getwd())
+
+setwd("data")
+file.copy(file.path(path, filename), getwd())
+
+file.copy(file.path(path, "murders.csv"), file.path(getwd(), "data"))
+
+file.location <- file.path(system.file("extdata", package = "dslabs"), "murders.csv")
+file.destination <- file.path(getwd(), "data")
+file.copy(file.location, file.destination) 
+```
+
+Assignment
+
+```{r}
+url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/wdbc.data"
+
+tmp_filename <- tempfile()
+download.file(url, tmp_filename)
+read_lines(tmp_filename, n_max=3)
+dat <- read_csv(tmp_filename,col_names=FALSE)
+file.remove(tmp_filename)
+
+
+```
+
+
+## Section 2: Tidy Data
+
+In the Tidy Data section, you will learn how to convert data from a raw to a tidy format.
+
+This section is divided into three parts: Reshaping Data, Combining Tables, and Web Scraping. There are comprehension checks at the end of each part.
+
+```{r}
+data(gapminder)
+
+# create and inspect a tidy data frame
+tidy_data <- gapminder %>% 
+  filter(country %in% c("South Korea", "Germany")) %>%
+  select(country, year, fertility)
+head(tidy_data)
+
+# plotting tidy data is simple
+tidy_data %>% 
+  ggplot(aes(year, fertility, color = country)) +
+  geom_point()
+
+# import and inspect example of original Gapminder data in wide format
+path <- system.file("extdata", package="dslabs")
+filename <- file.path(path,  "fertility-two-countries-example.csv")
+wide_data <- read_csv(filename)
+select(wide_data, country, `1960`:`1967`)
+
+```
+
+
+
+
+
+
+
+
+
+
+
