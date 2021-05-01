@@ -1,0 +1,53 @@
+---
+title: "Machine Learning"
+author: "Matt Bartley"
+date: "3/17/2021"
+output: github_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dslabs)
+library(tidyverse)
+library(caret)
+library(readr)
+```
+
+## Section 1: Introduction to Machine Learning
+
+Goals for this section:
+* Explain the difference between the outcome and the features
+* Explain when to use classification and when to use prediction
+* Explain the importance of prevalence
+* Explain the difference between sensitivity and specificity
+
+
+
+## Section 2: Machine Learning Basics
+
+```{r}
+data(heights)
+head(heights)
+
+# define the outcome and predictors (or label and features)
+y <- heights$sex
+x <- heights$height
+
+# generate training and test sets
+set.seed(2, sample.kind = "Rounding")
+test_index <- createDataPartition(y, times = 1, p = 0.5, list = FALSE)
+test_set <- heights[test_index,]
+train_set <- heights[-test_index,]
+
+# guess the outcome
+y_hat <- sample(c("Male", "Female"), length(test_index), replace=TRUE)
+y_hat <- sample(c("Male", "Female"), length(test_index), replace=TRUE) %>%
+  factor(levels = levels(test_set$sex))
+
+# compute our overall accuracy with the guessing method
+mean(y_hat == test_set$sex)
+
+
+
+```

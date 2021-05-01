@@ -103,11 +103,469 @@ select(wide_data, country, `1960`:`1967`)
 
 
 
+```{r}
+library(Lahman)
+top <- Batting %>% 
+  filter(yearID == 2016) %>%
+  arrange(desc(HR)) %>%    # arrange by descending HR count
+  slice(1:10)    # take entries 1-10
+top %>% as_tibble()
+
+Master %>% as_tibble()
+
+top_names <- top %>% left_join(Master) %>% select(playerID, nameFirst, nameLast, HR)
+top_names
+
+top_salary <- Salaries %>% filter(yearID == 2016) %>%
+  right_join(top_names) %>%
+  select(playerID, nameFirst, nameLast, teamID, HR, salary)
+top_salary
+
+head(AwardsPlayers)
+AwardsPlayers %>% filter(yearID == 2016) %>% inner_join(top_salary) %>% select(nameFirst, nameLast) %>% distinct(.keep_all = FALSE)
+
+AwardsPlayers %>% filter(yearID == 2016) %>% anti_join(top_salary) %>% select(playerID) %>% distinct(.keep_all=FALSE)
+
+```
+
+### Web Scraping
+
+```{r}
+# import a webpage into R
+library(rvest)
+url <- "https://en.wikipedia.org/wiki/Murder_in_the_United_States_by_state"
+h <- read_html(url)
+class(h)
+h
+
+tab <- h %>% html_nodes("table")
+tab <- tab[[2]]
+
+tab <- tab %>% html_table
+class(tab)
+
+tab <- tab %>% setNames(c("state", "population", "total", "murders", "gun_murders", "gun_ownership", "total_rate", "murder_rate", "gun_murder_rate"))
+head(tab)
+
+
+```
+
+Guacamole example
+
+```{r}
+h <- read_html("http://www.foodnetwork.com/recipes/alton-brown/guacamole-recipe-1940609")
+recipe <- h %>% html_node(".o-AssetTitle__a-HeadlineText") %>% html_text()
+prep_time <- h %>% html_node(".m-RecipeInfo__a-Description--Total") %>% html_text()
+ingredients <- h %>% html_nodes(".o-Ingredients__a-Ingredient") %>% html_text()
+
+guacamole <- list(recipe, prep_time, ingredients)
+guacamole
+
+get_recipe <- function(url){
+    h <- read_html(url)
+    recipe <- h %>% html_node(".o-AssetTitle__a-HeadlineText") %>% html_text()
+    prep_time <- h %>% html_node(".m-RecipeInfo__a-Description--Total") %>% html_text()
+    ingredients <- h %>% html_nodes(".o-Ingredients__a-Ingredient") %>% html_text()
+    return(list(recipe = recipe, prep_time = prep_time, ingredients = ingredients))
+} 
+
+get_recipe("http://www.foodnetwork.com/recipes/food-network-kitchen/pancakes-recipe-1913844")
+
+
+```
+
+Assessment
+
+```{r}
+library(rvest)
+url <- "https://web.archive.org/web/20181024132313/http://www.stevetheump.com/Payrolls.htm"
+h <- read_html(url)
+
+nodes <- html_nodes(h, "table")
+html_text(nodes[[8]])
+html_table(nodes[[8]])
+
+# Which of the first four nodes are tables of team payroll?
+sapply(nodes[1:4], html_table)
+
+# For the last 3 components of nodes, which of the following are true?
+sapply(nodes[19:21], html_table)
+
+
+tab_1 <- html_table(nodes[[10]])
+tab_2 <- html_table(nodes[[19]])
+
+colnames(tab_1) <- tab_1[1,]
+tab_1 <- tab_1[-c(1),]
+tab_1
+
+colnames(tab_2) <- tab_2[1,]
+tab_2 <- tab_2[-c(1),]
+tab_2
+
+tab_3 <- tab_2 %>% full_join(tab_1, by = "Team")
+```
+
+
+```{r}
+library(rvest)
+library(tidyverse)
+url <- "https://en.wikipedia.org/w/index.php?title=Opinion_polling_for_the_United_Kingdom_European_Union_membership_referendum&oldid=896735054"
+x <- read_html(url)
+tab <- html_nodes(x, "table")
+tab
+
+sapply(tab[1:9], html_table, fill=TRUE)
+
+```
 
 
 
 
+## String Processing
+
+```{r}
+s <- "Hello!"    # double quotes define a string
+s <- 'Hello!'    # single quotes define a string
+#s <- `Hello`    # backquotes do not
+
+#s <- "10""    # error - unclosed quotes
+s <- '10"'    # correct
+
+# cat shows what the string actually looks like inside R
+cat(s)
+
+s <- "5'"
+cat(s)
+
+# to include both single and double quotes in string, escape with \
+#s <- '5'10"'    # error
+#s <- "5'10""    # error
+s <- '5\'10"'    # correct
+cat(s)
+s <- "5'10\""    # correct
+cat(s)
+
+```
+
+### Case Study
+
+```{r}
+library(rvest)
+url <- paste0("https://en.wikipedia.org/w/index.php?title=",
+              "Gun_violence_in_the_United_States_by_state",
+              "&direction=prev&oldid=810166167")
+murders_raw <- read_html(url) %>%
+  html_node("table") %>%
+  html_table() %>%
+  setNames(c("state", "population", "total", "murder_rate"))
+
+# murders_raw was defined in the web scraping section
+
+# detect whether there are commas
+commas <- function(x) any(str_detect(x, ","))
+murders_raw %>% summarize_all(funs(commas))
+
+# replace commas with the empty string and convert to numeric
+test_1 <- str_replace_all(murders_raw$population, ",", "")
+test_1 <- as.numeric(test_1)
+
+# parse_number also removes commas and converts to numeric
+test_2 <- parse_number(murders_raw$population)
+identical(test_1, test_2)
+
+murders_new <- murders_raw %>% mutate_at(2:3, parse_number)
+murders_new %>% head
 
 
+```
+
+### Part 2
+
+```{r}
+
+# load raw heights data and inspect
+library(dslabs)
+data(reported_heights)
+class(reported_heights$height)
+
+# convert to numeric, inspect, count NAs
+x <- as.numeric(reported_heights$height)
+head(x)
+sum(is.na(x))
+
+# keep only entries that result in NAs
+reported_heights %>% mutate(new_height = as.numeric(height)) %>%
+  filter(is.na(new_height)) %>% 
+  head(n=10)
+
+# calculate cutoffs that cover 99.999% of human population
+alpha <- 1/10^6
+qnorm(1-alpha/2, 69.1, 2.9)
+qnorm(alpha/2, 63.7, 2.7)
+
+# keep only entries that either result in NAs or are outside the plausible range of heights
+not_inches <- function(x, smallest = 50, tallest = 84){
+  inches <- suppressWarnings(as.numeric(x))
+  ind <- is.na(inches) | inches < smallest | inches > tallest
+  ind
+}
+
+# number of problematic entries
+problems <- reported_heights %>% 
+  filter(not_inches(height)) %>%
+  .$height
+length(problems)
+
+# 10 examples of x'y or x'y" or x'y\"
+pattern <- "^\\d\\s*'\\s*\\d{1,2}\\.*\\d*'*\"*$"
+str_subset(problems, pattern) %>% head(n=10) %>% cat
+
+# 10 examples of x.y or x,y
+pattern <- "^[4-6]\\s*[\\.|,]\\s*([0-9]|10|11)$"
+str_subset(problems, pattern) %>% head(n=10) %>% cat
+
+# 10 examples of entries in cm rather than inches
+ind <- which(between(suppressWarnings(as.numeric(problems))/2.54, 54, 81) )
+ind <- ind[!is.na(ind)]
+problems[ind] %>% head(n=10) %>% cat
+
+```
+
+### RegEx
 
 
+```{r}
+# load stringr through tidyverse
+library(tidyverse)
+
+# detect whether a comma is present
+pattern <- ","
+str_detect(murders_raw$total, pattern) 
+
+# show the subset of strings including "cm"
+str_subset(reported_heights$height, "cm")
+
+# use the "or" symbol inside a regex (|)
+yes <- c("180 cm", "70 inches")
+no <- c("180", "70''")
+s <- c(yes, no)
+str_detect(s, "cm") | str_detect(s, "inches")
+str_detect(s, "cm|inches")
+
+# highlight the first occurrence of a pattern
+str_view(s, pattern)
+
+# highlight all instances of a pattern
+str_view_all(s, pattern)
+
+# s was defined in the previous video
+yes <- c("5", "6", "5'10", "5 feet", "4'11")
+no <- c("", ".", "Five", "six")
+s <- c(yes, no)
+pattern <- "\\d"
+
+# [56] means 5 or 6
+str_view(s, "[56]")
+
+# [4-7] means 4, 5, 6 or 7
+yes <- as.character(4:7)
+no <- as.character(1:3)
+s <- c(yes, no)
+str_detect(s, "[4-7]")
+
+# ^ means start of string, $ means end of string
+pattern <- "^\\d$"
+yes <- c("1", "5", "9")
+no <- c("12", "123", " 1", "a4", "b")
+s <- c(yes, no)
+str_view(s, pattern)
+
+# curly braces define quantifiers: 1 or 2 digits 
+pattern <- "^\\d{1,2}$"
+yes <- c("1", "5", "9", "12")
+no <- c("123", "a4", "b")
+str_view(c(yes, no), pattern)
+
+# combining character class, anchors and quantifier
+pattern <- "^[4-7]'\\d{1,2}\"$"
+yes <- c("5'7\"", "6'2\"",  "5'12\"")
+no <- c("6,2\"", "6.2\"","I am 5'11\"", "3'2\"", "64")
+str_detect(yes, pattern)
+str_detect(no, pattern)
+
+# number of entries matching our desired pattern
+pattern <- "^[4-7]'\\d{1,2}\"$"
+sum(str_detect(problems, pattern))
+
+# inspect examples of entries with problems
+problems[c(2, 10, 11, 12, 15)] %>% str_view(pattern)
+str_subset(problems, "inches")
+str_subset(problems, "''")
+
+# replace or remove feet/inches words before matching
+pattern <- "^[4-7]'\\d{1,2}$"
+problems %>% 
+  str_replace("feet|ft|foot", "'") %>% # replace feet, ft, foot with ' 
+  str_replace("inches|in|''|\"", "") %>% # remove all inches symbols
+  str_detect(pattern) %>% 
+  sum()
+
+# R does not ignore whitespace
+identical("Hi", "Hi ")
+
+# \\s represents whitespace
+pattern_2 <- "^[4-7]'\\s\\d{1,2}\"$"
+str_subset(problems, pattern_2)
+
+# * means 0 or more instances of a character
+yes <- c("AB", "A1B", "A11B", "A111B", "A1111B")
+no <- c("A2B", "A21B")
+str_detect(yes, "A1*B")
+str_detect(no, "A1*B")
+
+# test how *, ? and + differ
+data.frame(string = c("AB", "A1B", "A11B", "A111B", "A1111B"),
+           none_or_more = str_detect(yes, "A1*B"),
+           nore_or_once = str_detect(yes, "A1?B"),
+           once_or_more = str_detect(yes, "A1+B"))
+           
+# update pattern by adding optional spaces before and after feet symbol
+pattern <- "^[4-7]\\s*'\\s*\\d{1,2}$"
+problems %>% 
+  str_replace("feet|ft|foot", "'") %>% # replace feet, ft, foot with ' 
+  str_replace("inches|in|''|\"", "") %>% # remove all inches symbols
+  str_detect(pattern) %>% 
+  sum()
+
+```
+
+### Groups
+
+```{r}
+# define regex with and without groups
+pattern_without_groups <- "^[4-7],\\d*$"
+pattern_with_groups <-  "^([4-7]),(\\d*)$"
+
+# create examples
+yes <- c("5,9", "5,11", "6,", "6,1")
+no <- c("5'9", ",", "2,8", "6.1.1")
+s <- c(yes, no)
+
+# demonstrate the effect of groups
+str_detect(s, pattern_without_groups)
+str_detect(s, pattern_with_groups)
+
+# demonstrate difference between str_match and str_extract
+str_match(s, pattern_with_groups)
+str_extract(s, pattern_with_groups)
+
+# improve the pattern to recognize more events
+pattern_with_groups <-  "^([4-7]),(\\d*)$"
+yes <- c("5,9", "5,11", "6,", "6,1")
+no <- c("5'9", ",", "2,8", "6.1.1")
+s <- c(yes, no)
+str_replace(s, pattern_with_groups, "\\1'\\2")
+
+# final pattern
+pattern_with_groups <-"^([4-7])\\s*[,\\.\\s+]\\s*(\\d*)$"
+
+# combine stringr commands with the pipe
+str_subset(problems, pattern_with_groups) %>% head
+str_subset(problems, pattern_with_groups) %>% 
+  str_replace(pattern_with_groups, "\\1'\\2") %>% head
+
+```
+
+
+### Separate
+
+```{r}
+# first example - normally formatted heights
+s <- c("5'10", "6'1")
+tab <- data.frame(x = s)
+
+# the separate and extract functions behave similarly
+tab %>% separate(x, c("feet", "inches"), sep = "'")
+tab %>% extract(x, c("feet", "inches"), regex = "(\\d)'(\\d{1,2})")
+
+# second example - some heights with unusual formats
+s <- c("5'10", "6'1\"","5'8inches")
+tab <- data.frame(x = s)
+
+# separate fails because it leaves in extra characters, but extract keeps only the digits because of regex groups
+tab %>% separate(x, c("feet","inches"), sep = "'", fill = "right")
+tab %>% extract(x, c("feet", "inches"), regex = "(\\d)'(\\d{1,2})")
+
+# read raw murders data line by line
+filename <- system.file("extdata/murders.csv", package = "dslabs")
+lines <- readLines(filename)
+lines %>% head()
+
+# split at commas with str_split function, remove row of column names
+x <- str_split(lines, ",") 
+x %>% head()
+col_names <- x[[1]]
+x <- x[-1]
+
+# extract first element of each list entry
+library(purrr)
+map(x, function(y) y[1]) %>% head()
+map(x, 1) %>% head()
+
+# extract columns 1-5 as characters, then convert to proper format - NOTE: DIFFERENT FROM VIDEO
+dat <- data.frame(parse_guess(map_chr(x, 1)),
+                  parse_guess(map_chr(x, 2)),
+                  parse_guess(map_chr(x, 3)),
+                  parse_guess(map_chr(x, 4)),
+                  parse_guess(map_chr(x, 5))) %>%
+  setNames(col_names)
+  
+dat %>% head
+  
+# more efficient code for the same thing
+dat <- x %>%
+  transpose() %>%
+  map( ~ parse_guess(unlist(.))) %>%
+  setNames(col_names) %>% 
+  as.data.frame() 
+
+# the simplify argument makes str_split return a matrix instead of a list
+x <- str_split(lines, ",", simplify = TRUE) 
+col_names <- x[1,]
+x <- x[-1,]
+x %>% as_data_frame() %>%
+  setNames(col_names) %>%
+  mutate_all(parse_guess)
+
+````
+
+
+```{r}
+library(rvest)
+library(tidyverse)
+library(stringr)
+url <- "https://en.wikipedia.org/w/index.php?title=Opinion_polling_for_the_United_Kingdom_European_Union_membership_referendum&oldid=896735054"
+tab <- read_html(url) %>% html_nodes("table")
+polls <- tab[[5]] %>% html_table(fill = TRUE)
+
+as.numeric(str_remove(polls$Remain, "%"))
+as.numeric(polls$Remain)/100
+parse_number(polls$Remain)
+str_remove(polls$Remain, "%")/100
+as.numeric(str_replace(polls$Remain, "%", ""))/100
+parse_number(polls$Remain)/100
+
+
+temp <- str_extract_all(polls$`Date(s) conducted`,"\\d?\\s[a-zA-Z]?") #no
+temp <- str_extract_all(polls$`Date(s) conducted`,"\\d+\\s[a-zA-Z]+") #yes
+temp <- str_extract_all(polls$`Date(s) conducted`,"\\d+\\s[A-Z]+") #no
+temp <- str_extract_all(polls$`Date(s) conducted`,"[0-9]+\\s[a-zA-Z]+") #yes
+temp <- str_extract_all(polls$`Date(s) conducted`,"\\d{1,2}\\s[a-zA-Z]+") #yes
+temp <- str_extract_all(polls$`Date(s) conducted`,"\\d{1,2}[a-zA-Z]+") #no
+temp <- str_extract_all(polls$`Date(s) conducted`,"\\d+\\s[a-zA-Z]{3,5}" ) #yes
+end_date <- sapply(temp, function(x) x[length(x)]) # take last element (handles polls that cross month boundaries)
+end_date
+
+
+```
