@@ -196,7 +196,7 @@ galton_heights %>%
 ```
 
 
-Correlation is often motivated by the bivariate normal distribution which is defined for pairs of random variables. If we believe the pairs of random variables are independently normal, then the conditional distribution of one variable given the other is also approximately normal as well. Hence if we have father's heights and son's heights both being normal, and conditionally on the father's heights, the son's heights are approximately normal, then the bivariate distribution of father and son heights is also normal.
+Correlation is often motivated by the bivariate normal distribution which is defined for pairs of random variables. If we believe the pairs of random variables are independently normal, then the conditional distribution of one variable given the other is also approximately normal as well. Hence if we have father's heights and son's heights both being normal, and condition on the father's heights, the son's heights are approximately normal, then the bivariate distribution of father and son heights is also normal.
 
 To validate this assumption we assess whether the son's heights are approximately normal conditioning on the stratum of the father's height. Furthermore, if we validate that the data is approximately bivariate then the conditional expectations is given by the regression line.
 

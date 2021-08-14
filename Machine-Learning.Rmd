@@ -2,14 +2,19 @@
 title: "Journey through Data Science: Machine Learning"
 author: "Matt Bartley"
 date: "4/30/2021"
-output: github_document
+output: html_document
 ---
 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(devtools)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
 devtools::install_github("rafalab/dslabs")
+```
+
+```{r libraries, include=FALSE}
+library(devtools)
 library(dslabs)
 library(tidyverse)
 library(caret)
@@ -105,14 +110,10 @@ Notice that the success of our random guess approach is as expected, roughly **5
 Now we take a look at the confusion matrix and additional measures of accuracy. 
 
 **Sensitivity** (or *Recall*) is a measure of an algorithm's ability to accurately predict a positive outcome. In other words, it is the percentage positive cases that are identified by the algorithm. This is calculated as:
-$$
-Sensitivity=\frac{TP}{TP + FN}
-$$
+$$Sensitivity=\frac{TP}{TP + FN}$$
 
 **Specificity** is the measure of the algorithm's ability to accurately predict a negative outcome. Similar to above, it is the percentage of negative cases that are identified by the algorithm. This is calculated as:
-$$
-Specificity=\frac{TN}{TN + FP}
-$$
+$$Specificity=\frac{TN}{TN + FP}$$
 
 ```{r}
 # tabulate each combination of prediction and actual value
@@ -129,18 +130,12 @@ confusionMatrix(data = y_hat, reference = test_set$sex)
 
 Note that in situations where prevalence is low, precision becomes a more important metric. Precision is the given by the proportion of predicted positive cases that are actually positive. Formulaically:
 
-$$
-Precision = \frac{TP}{TP+FP}
-$$
+$$Precision = \frac{TP}{TP+FP}$$
 
 It is sometimes convenient to have a single numeric representation of the model's performance. For this we can consider either balanced accuracy or the F1 score. These are the arthimetic mean and harmonic mean respectively, of precision and recall. The harmonic mean is often used when averaging rates as in the example the average speed of a car. If a car travels at 60km/h for 20km and 40km/h for 10km, the correct average speed cannot be obtained by the arithmetic mean (50km/h) as it does not account for the amount of time traveling at the two distinct speeds. 
 
-$$
-Balanced Accuracy = \frac{Precision + Recall}{2}
-$$
-$$
-F1 Score = 2\times\frac{precision \times recall}{precision + recall}
-$$
+$$Balanced Accuracy = \frac{Precision + Recall}{2}$$
+$$F1 Score = 2\times\frac{precision \times recall}{precision + recall}$$
 
 
 
@@ -275,7 +270,7 @@ bind_rows(guessing, height_cutoff) %>%
 
 ```
 
-### Comprehension Check
+### Seciton 2.1 Comprehension Check
 
 ```{r}
 
@@ -294,11 +289,11 @@ y <- iris$Species
 ```
 
 
-```{r Q1}
+```{r 2.1.Q1}
 dat %>% group_by(type, sex) %>% summarise(n = n()) %>% mutate(p = n/sum(n))
 ```
 
-```{r Q2}
+```{r 2.1.Q2}
 prediction <- dat %>% 
   group_by(type, sex) %>% 
   summarise(n = n()) %>% 
@@ -316,27 +311,27 @@ dat %>%
 ```
 
 
-```{r Q3}
+```{r 2.1.Q3}
 table(dat$sex.x, dat$sex.y)
 ```
 
-```{r Q4}
+```{r 2.1.Q4}
 sensitivity(as.factor(dat$sex.y), as.factor(dat$sex.x))
 
 ```
 
 
-```{r Q5}
+```{r 2.1.Q5}
 specificity(as.factor(dat$sex.y), as.factor(dat$sex.x))
 
 ```
 
-```{r Q6}
+```{r 2.1.Q6}
 dat %>% group_by(sex.x) %>% summarise(n = n()) %>% mutate(p = n/sum(n))
 ```
 
 
-```{r Q7}
+```{r 2.1.Q7}
 # set.seed(2) # if using R 3.5 or earlier
 set.seed(2, sample.kind="Rounding") # if using R 3.6 or later
 test_index <- createDataPartition(y,times=1,p=0.5,list=FALSE)
@@ -346,7 +341,7 @@ train <- iris[-test_index,]
 
 
 
-```{r Q8}
+```{r 2.1.Q8}
 
 # Sepal Length Predictor
 cutoff <- seq(min(iris$Sepal.Length),max(iris$Sepal.Length),0.1)
@@ -420,7 +415,7 @@ max(accuracy)
 
 ```
 
-```{r Q9}
+```{r 2.1.Q9}
 
 cutoff <- seq(min(iris$Petal.Length),max(iris$Petal.Length),0.1)
 
@@ -445,7 +440,7 @@ mean(y_hat == test$Species)
 ```
 
 
-```{r Q10}
+```{r 2.1.Q10}
 # Sepal Length Predictor
 cutoff <- seq(min(iris$Sepal.Length),max(iris$Sepal.Length),0.1)
 
@@ -516,7 +511,7 @@ max(accuracy)
 ```
 
 
-```{r Q11}
+```{r 2.1.Q11}
 # what does this plot do?
 plot(iris,pch=21,bg=iris$Species)
 
@@ -561,3 +556,277 @@ y_hat <- ifelse(test$Petal.Length > PL_cutoff | test$Petal.Width > PW_cutoff, "v
 mean(y_hat == test$Species)
 
 ```
+
+
+
+
+### Section 2.2 Comprehension Check
+
+```{r 2.2.Q1}
+Test_Sensitivity <- 0.85
+Test_Specificity <- 0.90
+Incidence_Rate <- 0.02
+
+Pr_DiseaseCondTestPositive <- Test_Sensitivity * Incidence_Rate / (Test_Sensitivity * Incidence_Rate + (1 - Test_Specificity)*(1 - Incidence_Rate))
+Pr_DiseaseCondTestPositive
+
+```
+
+
+```{r 2.2.Q2}
+# set.seed(1) # if using R 3.5 or earlier
+set.seed(1, sample.kind = "Rounding") # if using R 3.6 or later
+disease <- sample(c(0,1), size=1e6, replace=TRUE, prob=c(0.98,0.02))
+test <- rep(NA, 1e6)
+test[disease==0] <- sample(c(0,1), size=sum(disease==0), replace=TRUE, prob=c(0.90,0.10))
+test[disease==1] <- sample(c(0,1), size=sum(disease==1), replace=TRUE, prob=c(0.15, 0.85))
+
+test %>% as_tibble() %>% ggplot(aes(value)) + geom_density()
+mean(test)
+```
+
+```{r 2.2.Q3}
+# prob disease | negative == prob negative | disease * prob disease / prob negative
+(1 - mean(test[disease==1])) * mean(disease) / (1 - mean(test))
+```
+
+```{r 2.2.Q4}
+# prob disease | positive == prob positive | disease * prob disease / prob positive
+(mean(test[disease==1])) * mean(disease) / (mean(test))
+```
+
+```{r 2.2.Q5}
+# lift = prob disease | positive / prob disease
+(mean(test[disease==1]) * mean(disease) / mean(test)) / mean(disease)
+
+```
+
+```{r 2.2.Q6}
+heights %>%
+  mutate(height = round(height)) %>%
+  group_by(height) %>%
+  summarise(p = mean(sex == "Male")) %>%
+  qplot(height, p, data =.)
+
+```
+
+
+```{r 2.2.Q7}
+ps <- seq(0, 1, 0.1)
+
+heights %>%
+  mutate(g = cut(height, quantile(height, ps), include.lowest = TRUE)) %>%
+  group_by(g) %>%
+  summarise(p = mean(sex == "Male"), height = mean(height)) %>%
+  qplot(height, p, data =.)
+
+```
+
+
+```{r 2.2.Q8}
+Sigma <- 9*matrix(c(1,0.5,0.5,1), 2, 2)
+dat <- MASS::mvrnorm(n = 10000, c(69, 69), Sigma) %>%
+	data.frame() %>% setNames(c("x", "y"))
+
+plot(dat)
+
+
+ps <- seq(0, 1, 0.1)
+dat %>% 
+	mutate(g = cut(x, quantile(x, ps), include.lowest = TRUE)) %>%
+  group_by(g) %>%
+  summarise(x = mean(x), y = mean(y)) %>%
+	qplot(x, y, data =.)
+```
+
+
+## Section 3: Linear Regression for Prediction, Smoothing, and Working with Matrices Overview
+
+THe focus of this section is on using linear regression for prediction. It however has limitations in more complex analysis but can be a useful tool for smoothing noisy data.
+
+We can start with the Galton heights example and compare the performance of naive prediction to regression analysis. Note that we are implicitly assuming that the data follows a bivariate normal distribution which should be validated in practice. We can do this by generating quantile plots for one variable which has been stratified by the other.
+
+```{r}
+library(HistData)
+galton_heights <- GaltonFamilies %>%
+  filter(childNum == 1 & gender == "male") %>%
+  select(father, childHeight) %>%
+  rename(son = childHeight)
+
+head(galton_heights)
+
+# separate data into training and test sets
+test_index <- galton_heights$son %>% createDataPartition(times = 1, p = 0.5, list=FALSE)
+train_set <- galton_heights %>% slice(-test_index)
+test_set <- galton_heights %>% slice(test_index)
+
+# perform naive prediction using average height of son and report accuracy using MSE
+naive_pred <- mean(train_set$son)
+mean((naive_pred - test_set$son)^2)
+
+# perform regression fit to predict son height using father height and report accuracy using MSE
+fit <- lm(son ~ father, data = train_set)
+fit$coef
+y_hat <- fit$coef[1] + fit$coef[2]*test_set$father
+mean((y_hat - test_set$son)^2)
+
+# validating the bivariate normal assumption: stratify by son heights by the standardized father heights
+galton_heights %>%
+  mutate(z_father = round((father - mean(father)) / sd(father))) %>% # standardize father heights
+  filter(z_father %in% -2:2) %>% # remove outliers
+  ggplot() + 
+  stat_qq(aes(sample = son)) + 
+  facet_wrap(~ z_father)
+
+# use the predict function to generate our new predictions instead of the coefficients
+y_hat <- predict(fit, test_set)
+mean((y_hat - test_set$son)^2)
+
+?predict.lm
+
+```
+
+
+### Section 3.1: comprehension check
+
+
+```{r 3.1.Q1}
+
+# set.seed(1) # if using R 3.5 or earlier
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+      data.frame() %>% setNames(c("x", "y"))
+
+
+
+my_func <- function() {
+  index_dat <- dat$y %>% createDataPartition(times = 1, p = 0.5, list=FALSE)
+  train_dat <- dat %>% slice(-index_dat)
+  test_dat <- dat %>% slice(index_dat)
+  fit_dat <- lm(y ~ x, data = train_dat)
+  y_hat_dat <- predict.lm(fit_dat, test_dat)
+  #y_hat_dat <- fit_dat$coef[1] + fit_dat$coef[2]*test_dat$x
+  sqrt(mean((y_hat_dat - test_dat$y)^2))
+}
+
+set.seed(1, sample.kind="Rounding")
+RMSE <- replicate(n, my_func())
+
+mean(RMSE)
+sd(RMSE)
+
+```
+
+```{r 3.1.Q2}
+
+n <- c(100, 500, 1000, 5000, 10000)
+set.seed(1, sample.kind="Rounding")
+sapply(n, function(n) {
+  Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+  dat <- MASS::mvrnorm(n = n, c(69, 69), Sigma) %>% data.frame() %>% setNames(c("x", "y"))
+  RMSE <- replicate(100, {
+    index_dat <- dat$y %>% createDataPartition(times = 1, p = 0.5, list=FALSE)
+    train_dat <- dat %>% slice(-index_dat)
+    test_dat <- dat %>% slice(index_dat)
+    fit_dat <- lm(y ~ x, data = train_dat)
+    y_hat_dat <- predict.lm(fit_dat, test_dat)
+    sqrt(mean((y_hat_dat - test_dat$y)^2))
+    })
+  c(mean(RMSE), sd(RMSE))
+})
+
+
+
+```
+
+```{r 3.1.Q4}
+# set.seed(1) # if using R 3.5 or earlier
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.95, 0.95, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+	data.frame() %>% setNames(c("x", "y"))
+
+my_func <- function() {
+  index_dat <- dat$y %>% createDataPartition(times = 1, p = 0.5, list=FALSE)
+  train_dat <- dat %>% slice(-index_dat)
+  test_dat <- dat %>% slice(index_dat)
+  fit_dat <- lm(y ~ x, data = train_dat)
+  y_hat_dat <- predict.lm(fit_dat, test_dat)
+  sqrt(mean((y_hat_dat - test_dat$y)^2))
+}
+
+set.seed(1, sample.kind="Rounding")
+RMSE <- replicate(n, my_func())
+
+mean(RMSE)
+sd(RMSE)
+```
+
+```{r 3.1.Q6}
+# set.seed(1) # if using R 3.5 or earlier
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+Sigma <- matrix(c(1.0, 0.75, 0.75, 0.75, 1.0, 0.25, 0.75, 0.25, 1.0), 3, 3)
+dat <- MASS::mvrnorm(n = 100, c(0, 0, 0), Sigma) %>%
+	data.frame() %>% setNames(c("y", "x_1", "x_2"))
+
+cor(dat)
+
+set.seed(1, sample.kind="Rounding")
+index_dat <- dat$y %>% createDataPartition(times = 1, p = 0.5, list=FALSE)
+train_dat <- dat %>% slice(-index_dat)
+test_dat <- dat %>% slice(index_dat)
+
+# train model on x_1
+fit_dat <- lm(y ~ x_1, data = train_dat)
+y_hat_dat <- predict.lm(fit_dat, test_dat)
+sqrt(mean((y_hat_dat - test_dat$y)^2))
+
+# train model on x_2
+fit_dat <- lm(y ~ x_2, data = train_dat)
+y_hat_dat <- predict.lm(fit_dat, test_dat)
+sqrt(mean((y_hat_dat - test_dat$y)^2))
+
+# train model on x_1 and x_2
+fit_dat <- lm(y ~ x_1 + x_2, data = train_dat)
+y_hat_dat <- predict.lm(fit_dat, test_dat)
+sqrt(mean((y_hat_dat - test_dat$y)^2))
+
+
+
+```
+
+
+```{r 3.1.Q8}
+# set.seed(1) # if using R 3.5 or earlier
+set.seed(1, sample.kind="Rounding") # if using R 3.6 or later
+Sigma <- matrix(c(1.0, 0.75, 0.75, 0.75, 1.0, 0.95, 0.75, 0.95, 1.0), 3, 3)
+dat <- MASS::mvrnorm(n = 100, c(0, 0, 0), Sigma) %>%
+	data.frame() %>% setNames(c("y", "x_1", "x_2"))
+
+cor(dat)
+
+set.seed(1, sample.kind="Rounding")
+index_dat <- dat$y %>% createDataPartition(times = 1, p = 0.5, list=FALSE)
+train_dat <- dat %>% slice(-index_dat)
+test_dat <- dat %>% slice(index_dat)
+
+# train model on x_1
+fit_dat <- lm(y ~ x_1, data = train_dat)
+y_hat_dat <- predict.lm(fit_dat, test_dat)
+sqrt(mean((y_hat_dat - test_dat$y)^2))
+
+# train model on x_2
+fit_dat <- lm(y ~ x_2, data = train_dat)
+y_hat_dat <- predict.lm(fit_dat, test_dat)
+sqrt(mean((y_hat_dat - test_dat$y)^2))
+
+# train model on x_1 and x_2
+fit_dat <- lm(y ~ x_1 + x_2, data = train_dat)
+y_hat_dat <- predict.lm(fit_dat, test_dat)
+sqrt(mean((y_hat_dat - test_dat$y)^2))
+```
+
+

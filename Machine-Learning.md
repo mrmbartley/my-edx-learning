@@ -155,16 +155,12 @@ accuracy.
 **Sensitivity** (or *Recall*) is a measure of an algorithm’s ability to
 accurately predict a positive outcome. In other words, it is the
 percentage positive cases that are identified by the algorithm. This is
-calculated as: \[
-Sensitivity=\frac{TP}{TP + FN}
-\]
+calculated as: \[Sensitivity=\frac{TP}{TP + FN}\]
 
 **Specificity** is the measure of the algorithm’s ability to accurately
 predict a negative outcome. Similar to above, it is the percentage of
 negative cases that are identified by the algorithm. This is calculated
-as: \[
-Specificity=\frac{TN}{TN + FP}
-\]
+as: \[Specificity=\frac{TN}{TN + FP}\]
 
 ``` r
 # tabulate each combination of prediction and actual value
@@ -227,11 +223,20 @@ Note that in situations where prevalence is low, precision becomes a
 more important metric. Precision is the given by the proportion of
 predicted positive cases that are actually positive. Formulaically:
 
-\[
-Precision = \frac{TP}{TP+FP}
-\]
+\[Precision = \frac{TP}{TP+FP}\]
 
-We can compute
+It is sometimes convenient to have a single numeric representation of
+the model’s performance. For this we can consider either balanced
+accuracy or the F1 score. These are the arthimetic mean and harmonic
+mean respectively, of precision and recall. The harmonic mean is often
+used when averaging rates as in the example the average speed of a car.
+If a car travels at 60km/h for 20km and 40km/h for 10km, the correct
+average speed cannot be obtained by the arithmetic mean (50km/h) as it
+does not account for the amount of time traveling at the two distinct
+speeds.
+
+\[Balanced Accuracy = \frac{Precision + Recall}{2}\]
+\[F1 Score = 2\times\frac{precision \times recall}{precision + recall}\]
 
 ``` r
 # maximize F-score
@@ -422,3 +427,402 @@ bind_rows(guessing, height_cutoff) %>%
     ## Warning: Removed 1 rows containing missing values (geom_point).
 
 ![](Machine-Learning_files/figure-gfm/ROC-5.png)<!-- -->
+
+### Comprehension Check
+
+``` r
+dat <- mutate(reported_heights, date_time = ymd_hms(time_stamp)) %>%
+  filter(date_time >= make_date(2016, 01, 25) & date_time < make_date(2016, 02, 1)) %>%
+  mutate(type = ifelse(day(date_time) == 25 & hour(date_time) == 8 & between(minute(date_time), 15, 30), "inclass","online")) %>%
+  select(sex, type)
+
+y <- factor(dat$sex, c("Female", "Male"))
+x <- dat$type
+
+data(iris)
+iris <- iris[-which(iris$Species=='setosa'),]
+y <- iris$Species
+```
+
+``` r
+dat %>% group_by(type, sex) %>% summarise(n = n()) %>% mutate(p = n/sum(n))
+```
+
+    ## # A tibble: 4 x 4
+    ## # Groups:   type [2]
+    ##   type    sex        n     p
+    ##   <chr>   <chr>  <int> <dbl>
+    ## 1 inclass Female    26 0.667
+    ## 2 inclass Male      13 0.333
+    ## 3 online  Female    42 0.378
+    ## 4 online  Male      69 0.622
+
+``` r
+prediction <- dat %>% 
+  group_by(type, sex) %>% 
+  summarise(n = n()) %>% 
+  mutate(p = n/sum(n), max_p = max(n/sum(n))) %>% 
+  filter(p == max_p) %>% 
+  ungroup() %>% 
+  select(type, sex)
+
+dat <- dat %>% 
+  left_join(prediction, by = c("type")) 
+
+dat %>% 
+  mutate(correct = sex.x == sex.y) %>%
+  summarise(accuracy = mean(correct))
+```
+
+    ##    accuracy
+    ## 1 0.6333333
+
+``` r
+table(dat$sex.x, dat$sex.y)
+```
+
+    ##         
+    ##          Female Male
+    ##   Female     26   42
+    ##   Male       13   69
+
+``` r
+sensitivity(as.factor(dat$sex.y), as.factor(dat$sex.x))
+```
+
+    ## [1] 0.3823529
+
+``` r
+specificity(as.factor(dat$sex.y), as.factor(dat$sex.x))
+```
+
+    ## [1] 0.8414634
+
+``` r
+dat %>% group_by(sex.x) %>% summarise(n = n()) %>% mutate(p = n/sum(n))
+```
+
+    ## # A tibble: 2 x 3
+    ##   sex.x      n     p
+    ##   <chr>  <int> <dbl>
+    ## 1 Female    68 0.453
+    ## 2 Male      82 0.547
+
+``` r
+# set.seed(2) # if using R 3.5 or earlier
+set.seed(2, sample.kind="Rounding") # if using R 3.6 or later
+```
+
+    ## Warning in set.seed(2, sample.kind = "Rounding"): non-uniform 'Rounding' sampler
+    ## used
+
+``` r
+test_index <- createDataPartition(y,times=1,p=0.5,list=FALSE)
+```
+
+    ## Warning in createDataPartition(y, times = 1, p = 0.5, list = FALSE): Some
+    ## classes have no records ( setosa ) and these will be ignored
+
+``` r
+test <- iris[test_index,]
+train <- iris[-test_index,]
+```
+
+``` r
+# Sepal Length Predictor
+cutoff <- seq(min(iris$Sepal.Length),max(iris$Sepal.Length),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Sepal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q8-1.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.7
+
+``` r
+# Sepal Width Predictor
+cutoff <- seq(min(iris$Sepal.Width),max(iris$Sepal.Width),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Sepal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q8-2.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.62
+
+``` r
+# Petal Length Predictor
+
+cutoff <- seq(min(iris$Petal.Length),max(iris$Petal.Length),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q8-3.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.96
+
+``` r
+# Petal Width Predictor
+
+cutoff <- seq(min(iris$Petal.Width),max(iris$Petal.Width),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q8-4.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.94
+
+``` r
+cutoff <- seq(min(iris$Petal.Length),max(iris$Petal.Length),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q9-1.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.96
+
+``` r
+smart_cutoff <- min(cutoff[accuracy == max(accuracy)])
+
+y_hat <- ifelse(test$Petal.Length > smart_cutoff, "virginica", "versicolor") %>% factor(levels = levels(test$Species))
+mean(y_hat == test$Species)
+```
+
+    ## [1] 0.9
+
+``` r
+# Sepal Length Predictor
+cutoff <- seq(min(iris$Sepal.Length),max(iris$Sepal.Length),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(test$Sepal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == test$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q10-1.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.78
+
+``` r
+# Sepal Width Predictor
+cutoff <- seq(min(iris$Sepal.Width),max(iris$Sepal.Width),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(test$Sepal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == test$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q10-2.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.64
+
+``` r
+# Petal Length Predictor
+
+cutoff <- seq(min(iris$Petal.Length),max(iris$Petal.Length),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(test$Petal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == test$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q10-3.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.9
+
+``` r
+# Petal Width Predictor
+
+cutoff <- seq(min(iris$Petal.Width),max(iris$Petal.Width),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(test$Petal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == test$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q10-4.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.94
+
+``` r
+# what does this plot do?
+plot(iris,pch=21,bg=iris$Species)
+```
+
+![](Machine-Learning_files/figure-gfm/Q11-1.png)<!-- -->
+
+``` r
+# Petal Length Predictor
+
+cutoff <- seq(min(iris$Petal.Length),max(iris$Petal.Length),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q11-2.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.96
+
+``` r
+PL_cutoff <- min(cutoff[accuracy == max(accuracy)])
+
+# Petal Width Predictor
+
+cutoff <- seq(min(iris$Petal.Width),max(iris$Petal.Width),0.1)
+
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+  
+data.frame(cutoff, accuracy) %>% 
+  ggplot(aes(cutoff, accuracy)) + 
+  geom_point() + 
+  geom_line()
+```
+
+![](Machine-Learning_files/figure-gfm/Q11-3.png)<!-- -->
+
+``` r
+max(accuracy)
+```
+
+    ## [1] 0.94
+
+``` r
+PW_cutoff <- min(cutoff[accuracy == max(accuracy)])
+
+
+y_hat <- ifelse(test$Petal.Length > PL_cutoff | test$Petal.Width > PW_cutoff, "virginica", "versicolor") %>% factor(levels = levels(test$Species))
+mean(y_hat == test$Species)
+```
+
+    ## [1] 0.88
+
+### Section 2.2: Conditional Probabilities
